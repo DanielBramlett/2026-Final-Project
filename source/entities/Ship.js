@@ -8,6 +8,9 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
         this.turnSpeed = shipType.turnSpeed;
         this.cannons = shipType.cannons;
         this.color = shipType.color;
+        this.rowing = shipType.rowing;
+        this.crew = shipType.crew;
+        this.crewMax = shipType.crewMax;
         
         // Velocity tracking
         this.velocityX = 0;
@@ -47,8 +50,8 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
     
     moveForward() {
         const angle = this.rotation;
-        this.velocityX = Math.cos(angle) * this.speed;
-        this.velocityY = Math.sin(angle) * this.speed;
+        this.velocityX = (Math.cos(angle) * this.speed) + (Math.cos(angle) * this.rowing);
+        this.velocityY = (Math.sin(angle) * this.speed) + (Math.sin(angle) * this.rowing);
     }
     
     moveBackward() {
@@ -58,11 +61,11 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
     }
     
     rotateLeft() {
-        this.rotationSpeed = -this.turnSpeed * 0.01;
+        this.rotationSpeed = -this.turnSpeed;
     }
     
     rotateRight() {
-        this.rotationSpeed = this.turnSpeed * 0.01;
+        this.rotationSpeed = this.turnSpeed;
     }
     
     stopRotation() {
@@ -74,12 +77,12 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
         this.velocityY = 0;
     }
     
-    update() {
+    update(time, delta) {
         // Apply velocity
         this.setVelocity(this.velocityX, this.velocityY);
         
-        // Apply rotation
-        this.rotation += this.rotationSpeed;
+        // Apply rotation (delta is in milliseconds, convert to seconds)
+        this.rotation += this.rotationSpeed * 0.01 * (delta / 1000);
     }
     
     getCannonInfo() {
