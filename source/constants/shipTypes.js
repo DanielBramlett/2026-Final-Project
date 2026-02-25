@@ -8,6 +8,9 @@ export const SHIP_TYPES = {
         cannons: 2,
         crew: 60,
         crewMax: 60,
+        cargo: 0,
+        cargoMax: 300,
+        windResistance: 0.8,
         color: 0x8B4513
     },
     BRIGANTINE: {
@@ -19,6 +22,9 @@ export const SHIP_TYPES = {
         cannons: 4,
         crew: 75,
         crewMax: 75,
+        cargo: 0,
+        cargoMax: 500,
+        windResistance: 0.7,
         color: 0x654321
     },
 
@@ -31,6 +37,9 @@ export const SHIP_TYPES = {
         cannons: 6,
         crew: 150,
         crewMax: 150,
+        cargo: 0,
+        cargoMax: 750,
+        windResistance: 0.7,
         color: 0x4B2E2E
     },
     GALLEON: {
@@ -42,6 +51,9 @@ export const SHIP_TYPES = {
         cannons: 8,
         crew: 150,
         crewMax: 150,
+        cargo: 0,
+        cargoMax: 1000,
+        windResistance: 0.6,
         color: 0x5C4033
     },
     CLIPPER: {
@@ -53,6 +65,9 @@ export const SHIP_TYPES = {
         cannons: 2,
         crew: 100,
         crewMax: 100,
+        cargo: 0,
+        cargoMax: 1500,
+        windResistance: 0.9,
         color: 0x5C4033
     },
     FIRST_RATE: {
@@ -64,6 +79,9 @@ export const SHIP_TYPES = {
         cannons: 12,
         crew: 800,
         crewMax: 800,
+        cargo: 0,
+        cargoMax: 2500,
+        windResistance: 0.6,
         color: 0x5C4033
     },
     SLOOP_OF_WAR:{
@@ -75,17 +93,23 @@ export const SHIP_TYPES = {
         cannons: 10,
         crew: 200,
         crewMax: 200,
+        cargo: 0,
+        cargoMax: 1250,
+        windResistance: 0.75,
         color: 0x5C4033
     },
     GALLEY:{
         name: 'Galley',
         size: 75,
         speed: 100,
-        rowing: 150,
+        rowing: 100,
         turnSpeed: 125,
         cannons: 4,
         crew: 200,
         crewMax:200,
-        color: 0x5C4033
+        cargo: 0,
+        cargoMax: 1250,
+        windResistance: 0.7,
+        color: 0x5C4033,     
     }
 };

@@ -11,7 +11,10 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
         this.rowing = shipType.rowing;
         this.crew = shipType.crew;
         this.crewMax = shipType.crewMax;
-        
+        this.cargo = shipType.cargo;
+        this.cargoMax = shipType.cargoMax;
+        this.windResistance = shipType.windResistance || 0.5; // Default wind resistance if not specified
+
         // Velocity tracking
         this.velocityX = 0;
         this.velocityY = 0;
@@ -50,8 +53,13 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
     
     moveForward() {
         const angle = this.rotation;
-        this.velocityX = (Math.cos(angle) * this.speed) + (Math.cos(angle) * this.rowing);
-        this.velocityY = (Math.sin(angle) * this.speed) + (Math.sin(angle) * this.rowing);
+        const windEffect = this.scene.windSystem.getWindEffect(angle);
+        
+        const windBoost = this.speed * windEffect.factor * this.shipType.windResistance;
+        const forwardSpeed = this.speed + windBoost;
+
+        this.velocityX = (Math.cos(angle) * forwardSpeed) + (Math.cos(angle) * this.rowing);
+        this.velocityY = (Math.sin(angle) * forwardSpeed) + (Math.sin(angle) * this.rowing);
     }
     
     moveBackward() {
@@ -69,12 +77,24 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
     }
     
     stopRotation() {
-        this.rotationSpeed = 0;
+        const rotationDeceleration = 0.95; // Adjust this value for more or less rotation deceleration
+        this.rotationSpeed *= rotationDeceleration;
+
+        // Stop if rotation speed is very small
+        if (Math.abs(this.rotationSpeed) < 0.01) {
+             this.rotationSpeed = 0;
+        }
+        
     }
     
-    stop() {
-        this.velocityX = 0;
-        this.velocityY = 0;
+    applyDeceleration() {
+        const deceleration = 0.95; // Adjust this value for more or less deceleration
+        this.velocityX *= deceleration;
+        this.velocityY *= deceleration;
+        
+        // Stop if velocity is very small
+        if (Math.abs(this.velocityX) < 0.1) this.velocityX = 0;
+        if (Math.abs(this.velocityY) < 0.1) this.velocityY = 0;
     }
     
     update(time, delta) {
