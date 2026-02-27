@@ -7,18 +7,25 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
         this.speed = shipType.speed;
         this.turnSpeed = shipType.turnSpeed;
         this.cannons = shipType.cannons;
-        this.color = shipType.color;
+        this.image = shipType.image ? null : shipType.color;
         this.rowing = shipType.rowing;
         this.crew = shipType.crew;
         this.crewMax = shipType.crewMax;
         this.cargo = shipType.cargo;
         this.cargoMax = shipType.cargoMax;
         this.windResistance = shipType.windResistance || 0.5; // Default wind resistance if not specified
+        this.isGalley = shipType.isGalley || 0
+
+        this.galleyAnimationFrame = 1; // Track animation frame for galleys
+        this.galleyAnimationTimer = 0; // Timer for galley animation
+        this.galleyAnimationSpeed = 300; // Time between animation frames in milliseconds
+        this.galleyDirection = 'East'; // Lock direction during animation
 
         // Velocity tracking
         this.velocityX = 0;
         this.velocityY = 0;
         this.rotationSpeed = 0;
+        this.facingAngle = 0; // Track rotation for movement, but not visual rotation
         
         // Create visual representation
         this.createVisuals();
@@ -31,28 +38,65 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
     }
     
     createVisuals() {
-        // Create rectangle for ship body
-        const graphics = this.scene.make.graphics({ x: 0, y: 0, add: false });
-        graphics.fillStyle(this.color, 1);
-        graphics.fillRect(-this.size / 2, -this.size / 2, this.size, this.size);
-        
-        // Create ship front indicator (triangle)
-        graphics.fillStyle(0xFFD700, 1);
-        graphics.fillTriangleShape(new Phaser.Geom.Triangle(
-            -this.size / 2, -this.size / 2,
-            this.size / 2, -this.size / 2,
-            0, -this.size / 2 - 15
-        ));
-        
-        const texture = graphics.generateTexture('shipTexture_' + Math.random(), this.size, this.size);
-        graphics.destroy();
-        
-        this.setTexture('shipTexture_' + Math.random());
+        // Use image if defined in shipType, otherwise create procedural texture
+        if (this.shipType.image) {
+            this.setTexture(this.shipType.image);
+        } else {
+            // Create rectangle for ship body
+            const graphics = this.scene.make.graphics({ x: 0, y: 0, add: false });
+            graphics.fillStyle(this.color, 1);
+            graphics.fillRect(-this.size / 2, -this.size / 2, this.size, this.size);
+            
+            // Create ship front indicator (triangle)
+            graphics.fillStyle(0xFFD700, 1);
+            graphics.fillTriangleShape(new Phaser.Geom.Triangle(
+                -this.size / 2, -this.size / 2,
+                this.size / 2, -this.size / 2,
+                0, -this.size / 2 - 15
+            ));
+            
+            const texture = graphics.generateTexture('shipTexture_' + Math.random(), this.size, this.size);
+            graphics.destroy();
+            
+            this.setTexture('shipTexture_' + Math.random());
+        }
         this.setDisplaySize(this.size, this.size);
     }
+
+    updateSpriteDirection() {
+    const cosAngle = Math.cos(this.facingAngle);
+    const direction = cosAngle > 0 ? 'East' : 'West';
+    
+    if (this.isGalley) {
+        const isMoving = Math.abs(this.velocityX) > 0.1 || Math.abs(this.velocityY) > 0.1;
+        
+        if (direction === 'East') {
+            if (isMoving) {
+                this.galleyAnimationTimer += this.scene.game.lastFrame || 16;
+                if (this.galleyAnimationTimer >= this.galleyAnimationSpeed) {
+                    this.galleyAnimationFrame = this.galleyAnimationFrame === 3 ? 1 : this.galleyAnimationFrame + 1;
+                    this.galleyAnimationTimer = 0;
+                }
+            }
+            const shipName = this.shipType.name.charAt(0).toUpperCase() + this.shipType.name.slice(1);
+            this.setTexture(`${shipName}_East_${this.galleyAnimationFrame}`);
+        } else {
+            if (isMoving) {
+                this.galleyAnimationTimer += this.scene.game.lastFrame || 16;
+                if (this.galleyAnimationTimer >= this.galleyAnimationSpeed) {
+                    this.galleyAnimationFrame = this.galleyAnimationFrame === 3 ? 1 : this.galleyAnimationFrame + 1;
+                    this.galleyAnimationTimer = 0;
+                }
+            }
+            this.setTexture(`${this.shipType.name}_West_${this.galleyAnimationFrame}`);
+        }
+    } else {
+        this.setTexture(`${this.shipType.name}_${direction}`);
+    }
+}
     
     moveForward() {
-        const angle = this.rotation;
+        const angle = this.facingAngle;
         const windEffect = this.scene.windSystem.getWindEffect(angle);
         
         const windBoost = this.speed * windEffect.factor * this.shipType.windResistance;
@@ -63,7 +107,7 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
     }
     
     moveBackward() {
-        const angle = this.rotation;
+        const angle = this.facingAngle;
         this.velocityX = Math.cos(angle) * this.speed * -0.5;
         this.velocityY = Math.sin(angle) * this.speed * -0.5;
     }
@@ -77,7 +121,10 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
     }
     
     stopRotation() {
-        const rotationDeceleration = 0.95; // Adjust this value for more or less rotation deceleration
+        let rotationDeceleration = 0.95; // Adjust this value for more or less rotation deceleration
+        if (this.shipType.turnSpeed < 150) {
+        rotationDeceleration = .95
+        } else { rotationDeceleration = .85}
         this.rotationSpeed *= rotationDeceleration;
 
         // Stop if rotation speed is very small
@@ -101,8 +148,11 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
         // Apply velocity
         this.setVelocity(this.velocityX, this.velocityY);
         
-        // Apply rotation (delta is in milliseconds, convert to seconds)
-        this.rotation += this.rotationSpeed * 0.01 * (delta / 1000);
+        // Update facing angle for movement (don't apply to visual rotation)
+        this.facingAngle += this.rotationSpeed * 0.01 * (delta / 1000);
+        
+        // Update sprite direction based on facing angle
+        this.updateSpriteDirection();
     }
     
     getCannonInfo() {
