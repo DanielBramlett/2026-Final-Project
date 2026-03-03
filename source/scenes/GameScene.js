@@ -59,20 +59,21 @@ export default class GameScene extends Phaser.Scene {
 
         this.windSystem = new WindSystem(this, 20000); // Change wind every 20 seconds
 
-        // Create some enemy ships
-        this.enemyShips = [];
-        this.enemyShips.push(new Ship(this, 450, 350, SHIP_TYPES.SLOOP));
-        this.enemyShips.push(new Ship(this, 1200, 400, SHIP_TYPES.GALLEON));
-        this.enemyShips.push(new Ship(this, 800, 900, SHIP_TYPES.FIRST_RATE));
-        this.enemyShips.push(new Ship(this, 1000, 1200, SHIP_TYPES.DUKE_OF_KENT));
-
         // Create player ship
         this.playerShip = new Ship(
             this,
-            this.cameras.main.centerX,
-            this.cameras.main.centerY,
-            SHIP_TYPES.FIRST_RATE,
+            this.cameras.main.centerX + 1000,
+            this.cameras.main.centerY + 1000,
+            SHIP_TYPES.SCHOONER,
         );
+
+        // Create some enemy ships
+        this.enemyShips = [];
+        this.enemyShips.push(new Ship(this, this.playerShipX + Phaser.Math.Between(-400, 400), this.playerShipY + Phaser.Math.Between(-400, 400), SHIP_TYPES.SLOOP));
+        this.enemyShips.push(new Ship(this, this.playerShipX + Phaser.Math.Between(-400, 400), this.playerShipY + Phaser.Math.Between(-400, 400), SHIP_TYPES.GALLEON));
+        this.enemyShips.push(new Ship(this, this.playerShipX + Phaser.Math.Between(-400, 400), this.playerShipY + Phaser.Math.Between(-400, 400), SHIP_TYPES.FIRST_RATE));
+        this.enemyShips.push(new Ship(this, this.playerShipX + Phaser.Math.Between(-400, 400), this.playerShipY + Phaser.Math.Between(-400, 400), SHIP_TYPES.DUKE_OF_KENT));
+
 
         this.directionArrow = this.add.graphics({ x: 0, y: 0, add: false}),
         
@@ -160,11 +161,11 @@ export default class GameScene extends Phaser.Scene {
         // Update enemy ships
         this.enemyShips.forEach(ship => ship.update(time, delta));
         
-const arrowDistance = this.playerShip.size / 2 + 20;
+const arrowDistance = this.playerShip.size / 2 + 30;
 const arrowX = this.playerShip.x + Math.cos(this.playerShip.facingAngle) * arrowDistance;
 const arrowY = this.playerShip.y + Math.sin(this.playerShip.facingAngle) * arrowDistance;
 this.directionArrow.clear();
-this.directionArrow.fillStyle(0xFFD700, 1);
+this.directionArrow.fillStyle(0xFF0030, 1);
 this.directionArrow.beginPath();
 this.directionArrow.moveTo(arrowX, arrowY);
 this.directionArrow.lineTo(

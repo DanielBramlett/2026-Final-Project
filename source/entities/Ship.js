@@ -50,9 +50,9 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
             // Create ship front indicator (triangle)
             graphics.fillStyle(0xFFD700, 1);
             graphics.fillTriangleShape(new Phaser.Geom.Triangle(
-                -this.size / 2, -this.size / 2,
-                this.size / 2, -this.size / 2,
-                0, -this.size / 2 - 15
+                -this.size / 2, -this.size,
+                this.size / 2, -this.size,
+                0, -this.size - 15
             ));
             
             const texture = graphics.generateTexture('shipTexture_' + Math.random(), this.size, this.size);
