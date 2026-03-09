@@ -51,6 +51,26 @@ export default class GameScene extends Phaser.Scene {
         this.load.image('Barquentine_East', 'assets/Barquentine_East.png')
         this.load.image('Barquentine_West', 'assets/Barquentine_West.png')
         this.load.image('Island', 'assets/Island.png');
+        this.load.image('Light_Galley_East_1', 'assets/Light_Galley_East_1.png');
+        this.load.image('Light_Galley_West_1', 'assets/Light_Galley_West_1.png');
+        this.load.image('Light_Galley_East_1', 'assets/Light_Galley_East_1.png');
+        this.load.image('Light_Galley_West_1', 'assets/Light_Galley_West_1.png');
+        this.load.image('Light_Galley_East_2', 'assets/Light_Galley_East_2.png');
+        this.load.image('Light_Galley_West_2', 'assets/Light_Galley_West_2.png');
+        this.load.image('Light_Galley_East_3', 'assets/Light_Galley_East_3.png');
+        this.load.image('Light_Galley_West_3', 'assets/Light_Galley_West_3.png');
+        this.load.image('Galloit_East_1', 'assets/Galloit_East_1.png');
+        this.load.image('Galloit_West_1', 'assets/Galloit_West_1.png');
+        this.load.image('Galloit_East_2', 'assets/Galloit_East_2.png');
+        this.load.image('Galloit_West_2', 'assets/Galloit_West_2.png');
+        this.load.image('Galloit_East_3', 'assets/Galloit_East_3.png');
+        this.load.image('Galloit_West_3', 'assets/Galloit_West_3.png');
+        this.load.image('Galleass_East_1', 'assets/Galleass_East_1.png');
+        this.load.image('Galleass_West_1', 'assets/Galleass_West_1.png');
+        this.load.image('Galleass_East_2', 'assets/Galleass_East_2.png');
+        this.load.image('Galleass_West_2', 'assets/Galleass_West_2.png');
+        this.load.image('Galleass_East_3', 'assets/Galleass_East_3.png');
+        this.load.image('Galleass_West_3', 'assets/Galleass_West_3.png');
     }
 
     create() {
@@ -66,7 +86,7 @@ export default class GameScene extends Phaser.Scene {
             this,
             2000,
             2000,
-            SHIP_TYPES.DUKE_OF_KENT,
+            SHIP_TYPES.GALLEASS,
         );
 
         // Create some enemy ships

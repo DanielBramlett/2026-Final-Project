@@ -7,7 +7,7 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
         this.speed = shipType.speed;
         this.turnSpeed = shipType.turnSpeed;
         this.cannons = shipType.cannons;
-        this.image = shipType.image ? null : shipType.color;
+        this.image = shipType.image;
         this.rowing = shipType.rowing;
         this.crew = shipType.crew;
         this.crewMax = shipType.crewMax;
