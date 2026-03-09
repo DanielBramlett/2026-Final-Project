@@ -1,6 +1,7 @@
 import Ship from '../entities/Ship.js';
 import { SHIP_TYPES } from '../constants/shipTypes.js';
 import WindSystem from '../systems/WindSystem.js'; 
+import { Obstacle } from '../systems/obstacle.js';
 
 export default class GameScene extends Phaser.Scene {
     constructor() {
@@ -49,6 +50,7 @@ export default class GameScene extends Phaser.Scene {
         this.load.image('Carrack_West', 'assets/Carrack_West.png')
         this.load.image('Barquentine_East', 'assets/Barquentine_East.png')
         this.load.image('Barquentine_West', 'assets/Barquentine_West.png')
+        this.load.image('Island', 'assets/Island.png');
     }
 
     create() {
@@ -62,19 +64,24 @@ export default class GameScene extends Phaser.Scene {
         // Create player ship
         this.playerShip = new Ship(
             this,
-            this.cameras.main.centerX + 1000,
-            this.cameras.main.centerY + 1000,
-            SHIP_TYPES.SCHOONER,
+            2000,
+            2000,
+            SHIP_TYPES.DUKE_OF_KENT,
         );
 
         // Create some enemy ships
         this.enemyShips = [];
-        this.enemyShips.push(new Ship(this, this.playerShipX + Phaser.Math.Between(-400, 400), this.playerShipY + Phaser.Math.Between(-400, 400), SHIP_TYPES.SLOOP));
-        this.enemyShips.push(new Ship(this, this.playerShipX + Phaser.Math.Between(-400, 400), this.playerShipY + Phaser.Math.Between(-400, 400), SHIP_TYPES.GALLEON));
-        this.enemyShips.push(new Ship(this, this.playerShipX + Phaser.Math.Between(-400, 400), this.playerShipY + Phaser.Math.Between(-400, 400), SHIP_TYPES.FIRST_RATE));
-        this.enemyShips.push(new Ship(this, this.playerShipX + Phaser.Math.Between(-400, 400), this.playerShipY + Phaser.Math.Between(-400, 400), SHIP_TYPES.DUKE_OF_KENT));
+        this.enemyShips.push(new Ship(this, this.playerShip.x + Phaser.Math.Between(-2000, 0) || this.playerShip.x + Phaser.Math.Between(0, 2000), this.playerShip.y + Phaser.Math.Between(-2000, 0) || this.playerShip.y + Phaser.Math.Between(0, 2000), SHIP_TYPES.SLOOP));
+        this.enemyShips.push(new Ship(this, this.playerShip.x + Phaser.Math.Between(-2000, 0) || this.playerShip.x + Phaser.Math.Between(0, 2000), this.playerShip.y + Phaser.Math.Between(-2000, 0) || this.playerShip.y + Phaser.Math.Between(0, 2000), SHIP_TYPES.GALLEON));
+        this.enemyShips.push(new Ship(this, this.playerShip.x + Phaser.Math.Between(-2000, 0) || this.playerShip.x + Phaser.Math.Between(0, 2000), this.playerShip.y + Phaser.Math.Between(-2000, 0) || this.playerShip.y + Phaser.Math.Between(0, 2000), SHIP_TYPES.FIRST_RATE));
+        this.enemyShips.push(new Ship(this, this.playerShip.x + Phaser.Math.Between(-2000, 0) || this.playerShip.x + Phaser.Math.Between(0, 2000), this.playerShip.y + Phaser.Math.Between(-2000, 0) || this.playerShip.y + Phaser.Math.Between(0, 2000), SHIP_TYPES.DUKE_OF_KENT));
 
-
+        this.islands = [];
+        this.islands.push(new Obstacle(this, 1500, 1500, 300, 300, 'Island'));
+        this.islands.push(new Obstacle(this, 2500, 2500, 400, 400, 'Island'));
+        this.islands.push(new Obstacle(this, 2000, 1000, 200, 200, 'Island'));
+        
+        
         this.directionArrow = this.add.graphics({ x: 0, y: 0, add: false}),
         
         
