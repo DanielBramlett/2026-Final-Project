@@ -1,7 +1,7 @@
 import Ship from '../entities/Ship.js';
 import { SHIP_TYPES } from '../constants/shipTypes.js';
 import WindSystem from '../systems/WindSystem.js'; 
-import { Obstacle } from '../systems/obstacle.js';
+import { Obstacle } from '../systems/Obstacle.js';
 
 export default class GameScene extends Phaser.Scene {
     constructor() {
@@ -71,13 +71,19 @@ export default class GameScene extends Phaser.Scene {
         this.load.image('Galleass_West_2', 'assets/Galleass_West_2.png');
         this.load.image('Galleass_East_3', 'assets/Galleass_East_3.png');
         this.load.image('Galleass_West_3', 'assets/Galleass_West_3.png');
+        this.load.image('Fourth_Rate_East', 'assets/Fourth_Rate_East.png');
+        this.load.image('Fourth_Rate_West', 'assets/Fourth_Rate_West.png');
+        this.load.image('Third_Rate_East', 'assets/Third_Rate_East.png');
+        this.load.image('Third_Rate_West', 'assets/Third_Rate_West.png');
+        this.load.image('Second_Rate_East', 'assets/Second_Rate_East.png');
+        this.load.image('Second_Rate_West', 'assets/Second_Rate_West.png');
     }
 
     create() {
         this.cameras.main.setBackgroundColor('#02468b');
         
         // Enable physics with arcade mode
-        this.physics.world.setBounds(0, 0, 3000, 2600);
+        this.physics.world.setBounds(0, 0, 10000, 10000);
 
         this.windSystem = new WindSystem(this, 20000); // Change wind every 20 seconds
 
@@ -86,7 +92,7 @@ export default class GameScene extends Phaser.Scene {
             this,
             2000,
             2000,
-            SHIP_TYPES.GALLEASS,
+            SHIP_TYPES.SECOND_RATE,
         );
 
         // Create some enemy ships
@@ -100,6 +106,7 @@ export default class GameScene extends Phaser.Scene {
         this.islands.push(new Obstacle(this, 1500, 1500, 300, 300, 'Island'));
         this.islands.push(new Obstacle(this, 2500, 2500, 400, 400, 'Island'));
         this.islands.push(new Obstacle(this, 2000, 1000, 200, 200, 'Island'));
+        this.islands.push(new Obstacle(this, 1000, 0, 500, 500, 'Island'));
         
         
         this.directionArrow = this.add.graphics({ x: 0, y: 0, add: false}),
@@ -143,7 +150,7 @@ export default class GameScene extends Phaser.Scene {
         };
         this.infoBoxVisible = true;
         this.infoBoxToggleDelay =0;
-        this.infoBoxToggleDelayMax = 300; // milliseconds
+        this.infoBoxToggleDelayMax = 150; // milliseconds
     }
 
     update(time, delta) {

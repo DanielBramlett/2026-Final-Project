@@ -223,7 +223,7 @@ export const SHIP_TYPES = {
         windResistance: 0.7,
         isGalley: 0
      },
-     Fourth_Rate: {
+     FOURTH_RATE: {
         name: 'Fourth_Rate',
         size: 85,
         speed: 120,
@@ -265,7 +265,7 @@ export const SHIP_TYPES = {
         windResistance: 0.7,
         isGalley: 1     
     },
-    Third_Rate: {
+    THIRD_RATE: {
         name: 'Third_Rate',
         size: 95,
         speed: 100,
@@ -293,7 +293,7 @@ export const SHIP_TYPES = {
         windResistance: 0.6,
         isGalley: 1
     },
-    Second_Rate: {
+    SECOND_RATE: {
         name: 'Second_Rate',
         size: 90,
         speed: 80,
@@ -345,10 +345,13 @@ export const SHIP_TYPES = {
         crew: 900,
         crewMax: 900,
         cargo: 0,
+        cargoMax: 3000,
+        windResistance: 0.6,
+        isGalley: 0,
     },
     SANTTÌSIMA_TRINIDAD: {
         name: 'Santísima Trinidad',
-        size: 95,
+        size: 97.5,
         speed: 75,
         rowing: 0,
         turnSpeed: 80,
