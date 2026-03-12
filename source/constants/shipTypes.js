@@ -1,7 +1,7 @@
 export const SHIP_TYPES = {
     SLOOP: {
         name: 'Sloop',
-        size: 50,
+        size: 500,
         speed: 200,
         rowing: 0,
         turnSpeed: 200,
@@ -11,11 +11,15 @@ export const SHIP_TYPES = {
         cargo: 0,
         cargoMax: 300,
         windResistance: 0.8,
-        isGalley: 0
+        isGalley: 0,
+        image: 'Sloop_East',
+        hitboxScaleX: 0.35,
+        hitboxScaleY: 0.25,
+        needsOffset: 0
     },
      CUTTER: {
         name: 'Cutter',
-        size: 55,
+        size: 550,
         speed: 185,
         rowing: 0,
         turnSpeed: 170,
@@ -25,11 +29,17 @@ export const SHIP_TYPES = {
         cargo: 0,
         cargoMax: 400,
         windResistance: .9,
-        isGalley: 0
+        isGalley: 0,
+        image: 'Cutter_East',
+        hitboxScaleX: 0.3,
+        hitboxScaleY: 0.2,
+        hitboxOffsetX: 18,
+        hitboxOffsetY: 45,
+        needsOffset: 1
     },
      KETCH: {
         name: 'Ketch',
-        size: 57.5,
+        size: 575,
         speed: 225,
         rowing: 0,
         turnSpeed: 215,
@@ -39,11 +49,15 @@ export const SHIP_TYPES = {
         cargo: 0,
         cargoMax: 450,
         windResistance: .975,
-        isGalley: 0
+        isGalley: 0,
+        image: 'Ketch_East',
+        hitboxScaleX: 0.325,
+        hitboxScaleY: 0.185,
+        needsOffset: 0
     },
      SCHOONER: {
         name: 'Schooner',
-        size: 60,
+        size: 600,
         speed: 250,
         rowing: 0,
         turnSpeed: 225,
@@ -53,11 +67,15 @@ export const SHIP_TYPES = {
         cargo: 0,
         cargoMax: 550,
         windResistance: .975,
-        isGalley: 0
+        isGalley: 0,
+        image: 'Schooner_East',
+        hitboxScaleX: 0.27,
+        hitboxScaleY: 0.175,
+        needsOffset: 0
     },
      CARAVEL: {
        name: 'Caravel',
-       size: 65,
+       size: 650,
        speed: 140,
        rowing: 0,
        turnSpeed: 105,
@@ -67,11 +85,15 @@ export const SHIP_TYPES = {
        cargo: 0,
        cargoMax: 1750,
        windResistance: .8,
-       isGalley: 0
+       isGalley: 0,
+       image: 'Caravel_East',
+       hitboxScaleX: 0.2,
+       hitboxScaleY: 0.135,
+       needsOffset: 0
     },
      BRIG: {
         name: 'Brig',
-        size: 65,
+        size: 650,
         speed: 145,
         rowing: 0,
         turnSpeed: 150,
@@ -81,11 +103,15 @@ export const SHIP_TYPES = {
         cargo: 0,
         cargoMax: 750,
         windResistance: .75,
-        isGalley: 0
+        isGalley: 0,
+        image: 'Brig_East',
+        hitboxScaleX: 0.29,
+        hitboxScaleY: 0.13,
+        needsOffset: 0,
     },
-     Barquentine: {
+     BARQUENTINE: {
         name: 'Barquentine',
-        size: 70,
+        size: 700,
         speed: 135,
         rowing: 0,
         turnSpeed: 145,
@@ -95,11 +121,15 @@ export const SHIP_TYPES = {
         cargo: 0,
         cargoMax: 850,
         windResistance: .775,
-        isGalley: 0
+        isGalley: 0,
+        image: 'Barquentine_East',
+        hitboxScaleX: 0.29,
+        hitboxScaleY: 0.153,
+        needsOffset: 0
     },
     BRIGANTINE: {
         name: 'Brigantine',
-        size: 70,
+        size: 700,
         speed: 150,
         rowing: 0,
         turnSpeed: 160,
@@ -109,11 +139,15 @@ export const SHIP_TYPES = {
         cargo: 0,
         cargoMax: 500,
         windResistance: 0.7,
-        isGalley: 0
+        isGalley: 0,
+        image: 'Brigantine_East',
+        hitboxScaleX: 0.28,
+        hitboxScaleY: 0.185,
+        needsOffset: 0
     },
     CARRACK: {
         name: 'Carrack',
-        size: 75,
+        size: 750,
         speed: 120,
         rowing: 0,
         turnSpeed: 90,
@@ -123,11 +157,15 @@ export const SHIP_TYPES = {
         cargo: 0,
         cargoMax: 2500,
         windResistance: .75,
-        isGalley: 0
+        isGalley: 0,
+        image: 'Carrack_East',
+        hitboxScaleX: 0.22,
+        hitboxScaleY: 0.15,
+        needsOffset: 0
     },
-     Barque: {
+     BARQUE: {
         name: 'Barque',
-        size: 75,
+        size: 750,
         speed: 130,
         rowing: 0,
         turnSpeed: 140,
@@ -137,11 +175,15 @@ export const SHIP_TYPES = {
         cargo: 0,
         cargoMax: 900,
         windResistance: .8,
-        isGalley: 0
+        isGalley: 0,
+        image: 'Barque_East',
+        hitboxScaleX: 0.24,
+        hitboxScaleY: 0.14,
+        needsOffset: 0
     },
      XEBEC: {
         name: 'Xebec',
-        size: 75,
+        size: 750,
         speed: 250,
         rowing: 0,
         turnSpeed: 200,
@@ -151,11 +193,15 @@ export const SHIP_TYPES = {
         cargo: 0,
         cargoMax: 900,
         windResistance: .95,
-        isGalley: 0
+        isGalley: 0,
+        image: 'Xebec_East',
+        hitboxScaleX: 0.225,
+        hitboxScaleY: 0.09,
+        needsOffset: 0
     },
     GALLOIT: {
         name: 'Galloit',
-        size: 75,
+        size: 750,
         speed: 120,
         rowing: 60,
         turnSpeed: 140,
@@ -166,10 +212,16 @@ export const SHIP_TYPES = {
         cargoMax: 800,
         windResistance: 0.7,
         isGalley: 1,
+        image: 'Galloit_East',
+        hitboxScaleX: 0.275,
+        hitboxScaleY: 0.15,
+        hitboxOffsetX: -2,
+        hitboxOffsetY: 45,
+        needsOffset: 1
     },
     CLIPPER: {
         name: 'Clipper',
-        size: 80,
+        size: 800,
         speed: 195,
         rowing: 0,
         turnSpeed: 100,
@@ -179,11 +231,16 @@ export const SHIP_TYPES = {
         cargo: 0,
         cargoMax: 1500,
         windResistance: 0.9,
-        isGalley: 0
+        isGalley: 0,
+        hitboxScaleX: 0.25,
+        hitboxScaleY: 0.14,
+        hitboxOffsetX: 1,
+        hitboxOffsetY: 45,
+        needsOffset: 1
     },
     SLOOP_OF_WAR:{
         name:'Sloop_of_War',
-        size: 80,
+        size: 800,
         speed: 150,
         rowing: 0,
         turnSpeed: 165,
@@ -193,11 +250,16 @@ export const SHIP_TYPES = {
         cargo: 0,
         cargoMax: 1250,
         windResistance: 0.75,
-        isGalley: 0
+        isGalley: 0,
+        hitboxScaleX: 0.24,
+        hitboxScaleY: 0.17,
+        hitboxOffsetX: 5,
+        hitboxOffsetY: 33,
+        needsOffset: 1
     },
     LIGHT_GALLEY: {
         name: 'Light_Galley',
-        size: 80,
+        size: 800,
         speed: 110,
         rowing: 80,
         turnSpeed: 130,
@@ -208,10 +270,16 @@ export const SHIP_TYPES = {
         cargoMax: 1000,
         windResistance: 0.65,
         isGalley: 1,
+        image: 'Light_Galley_East',
+        hitboxScaleX: 0.26,
+        hitboxScaleY: 0.15,
+        hitboxOffsetX: -3,
+        hitboxOffsetY: 41,
+        needsOffset: 1
     },
      FRIGATE: {
         name: 'Frigate',
-        size: 85,
+        size: 850,
         speed: 180,
         rowing: 0,
         turnSpeed: 180,
@@ -221,11 +289,15 @@ export const SHIP_TYPES = {
         cargo: 0,
         cargoMax: 750,
         windResistance: 0.7,
-        isGalley: 0
+        isGalley: 0,
+        image: 'Frigate_East',
+        hitboxScaleX: 0.232,
+        hitboxScaleY: 0.133,
+        needsOffset: 0
      },
      FOURTH_RATE: {
         name: 'Fourth_Rate',
-        size: 85,
+        size: 850,
         speed: 120,
         rowing: 0,
         turnSpeed: 110,
@@ -235,11 +307,15 @@ export const SHIP_TYPES = {
         cargo: 0,
         cargoMax: 900,
         windResistance: 0.65,
-        isGalley: 0
+        isGalley: 0,
+        image: 'Fourth_Rate_East',
+        hitboxScaleX: 0.22,
+        hitboxScaleY: 0.12,
+        needsOffset: 0
     },
     GALLEON: {
         name: 'Galleon',
-        size: 90,
+        size: 900,
         speed: 100,
         rowing: 0,
         turnSpeed: 120,
@@ -249,11 +325,15 @@ export const SHIP_TYPES = {
         cargo: 0,
         cargoMax: 1000,
         windResistance: 0.6,
-        isGalley: 0
+        isGalley: 0,
+        image: 'Galleon_East',
+        hitboxScaleX: 0.21,
+        hitboxScaleY: 0.15,
+        needsOffset: 0
     },
     GALLEY:{
         name: 'Galley',
-        size: 90,
+        size: 900,
         speed: 100,
         rowing: 100,
         turnSpeed: 125,
@@ -263,11 +343,17 @@ export const SHIP_TYPES = {
         cargo: 0,
         cargoMax: 1250,
         windResistance: 0.7,
-        isGalley: 1     
+        isGalley: 1,
+        image: 'Galley_East',
+        hitboxScaleX: 0.23,
+        hitboxScaleY: 0.135,
+        hitboxOffsetX: -3,
+        hitboxOffsetY: 40,
+        needsOffset: 1
     },
     THIRD_RATE: {
         name: 'Third_Rate',
-        size: 95,
+        size: 900,
         speed: 100,
         rowing: 0,
         turnSpeed: 100,
@@ -277,11 +363,15 @@ export const SHIP_TYPES = {
         cargo: 0,
         cargoMax: 1750,
         windResistance: 0.6,
-        isGalley: 0
+        isGalley: 0,
+        image: 'Third_Rate_East',
+        hitboxScaleX: 0.2,
+        hitboxScaleY: 0.1075,
+        needsOffset: 0
     },
     GALLEASS: {
         name: 'Galleass',
-        size: 95,
+        size: 900,
         speed: 90,
         rowing: 120,
         turnSpeed: 110,
@@ -291,11 +381,16 @@ export const SHIP_TYPES = {
         cargo: 0,
         cargoMax: 1750,
         windResistance: 0.6,
-        isGalley: 1
+        isGalley: 1,
+        hitboxScaleX: 0.195,
+        hitboxScaleY: 0.1,
+        hitboxOffsetX: 12,
+        hitboxOffsetY: 55,
+        needsOffset: 1
     },
     SECOND_RATE: {
         name: 'Second_Rate',
-        size: 90,
+        size: 925,
         speed: 80,
         rowing: 0,
         turnSpeed: 95,
@@ -306,10 +401,15 @@ export const SHIP_TYPES = {
         cargoMax: 2000,
         windResistance: 0.65,
         isGalley: 0,
+        hitboxScaleX: 0.4,
+        hitboxScaleY: 0.3,
+        hitboxOffsetX: 20,
+        hitboxOffsetY: 65,
+        needsOffset: 1
     },
     FIRST_RATE: {
         name: 'First_Rate',
-        size: 95,
+        size: 950,
         speed: 75,
         rowing: 0,
         turnSpeed: 80,
@@ -319,11 +419,17 @@ export const SHIP_TYPES = {
         cargo: 0,
         cargoMax: 2500,
         windResistance: 0.6,
-        isGalley: 0
+        isGalley: 0,
+        image: 'First_Rate_East',
+        hitboxScaleX: 0.4,
+        hitboxScaleY: 0.3,
+        hitboxOffsetX: 10,
+        hitboxOffsetY: 60,
+        needsOffset: 1
     },
     HMS_VICTORY: {
         name: 'HMS_Victory',
-        size: 95,
+        size: 950,
         speed: 80,
         rowing: 0,
         turnSpeed: 85,
@@ -334,10 +440,13 @@ export const SHIP_TYPES = {
         cargoMax: 2750,
         windResistance: 0.65,
         isGalley: 0,
+        hitboxScaleX: 0.25,
+        hitboxScaleY: 0.15,
+        needsOffset: 0
     },
     ORIENT: {
         name: 'Orient',
-        size: 95,
+        size: 950,
         speed: 65,
         rowing: 0,
         turnSpeed: 70,
@@ -348,10 +457,13 @@ export const SHIP_TYPES = {
         cargoMax: 3000,
         windResistance: 0.6,
         isGalley: 0,
+        hitboxScaleX: 0.25,
+        hitboxScaleY: 0.15,
+        needsOffset: 0
     },
     SANTTÌSIMA_TRINIDAD: {
         name: 'Santísima Trinidad',
-        size: 97.5,
+        size: 975,
         speed: 75,
         rowing: 0,
         turnSpeed: 80,
@@ -362,10 +474,13 @@ export const SHIP_TYPES = {
         cargoMax: 3500,
         windResistance: 0.6,
         isGalley: 0,
+        hitboxScaleX: 0.25,
+        hitboxScaleY: 0.15,
+        needsOffset: 0
     },
     URCA_DE_LIMA: {
         name: 'Urca_de_Lima',
-        size: 100,
+        size: 1000,
         speed: 70,
         rowing: 0,
         turnSpeed: 75,
@@ -375,11 +490,14 @@ export const SHIP_TYPES = {
         cargo: 0,
         cargoMax: 4500,
         windResistance: 0.6,
-        isGalley: 0
+        isGalley: 0,
+        hitboxScaleX: 0.25,
+        hitboxScaleY: 0.15,
+        needsOffset: 0
     },
     DUKE_OF_KENT: {
         name: 'Duke_of_Kent',
-        size: 100,
+        size: 1000,
         speed: 60,
         rowing: 0,
         turnSpeed: 60,
@@ -389,6 +507,10 @@ export const SHIP_TYPES = {
         cargo: 0,
         cargoMax: 4000,
         windResistance: 0.55,
-        isGalley: 0
+        isGalley: 0,
+        image: 'Duke_of_Kent_East',
+        hitboxScaleX: 0.39,
+        hitboxScaleY: 0.32,
+        needsOffset: 0
     },
 };

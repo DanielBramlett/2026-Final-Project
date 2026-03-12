@@ -14,12 +14,15 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
         this.cargo = shipType.cargo;
         this.cargoMax = shipType.cargoMax;
         this.windResistance = shipType.windResistance || 0.5; // Default wind resistance if not specified
-        this.isGalley = shipType.isGalley || 0
+        this.isGalley = shipType.isGalley || 0;
+        this.image = shipType.image;
+        this.hitboxOffsetX = shipType.hitboxOffsetX;
+        this.hitboxOffsetY = shipType.hitboxOffsetY;
+        this.needsOffset = shipType.needsOffset || 0;
 
         this.galleyAnimationFrame = 1; // Track animation frame for galleys
         this.galleyAnimationTimer = 0; // Timer for galley animation
         this.galleyAnimationSpeed = 300; // Time between animation frames in milliseconds
-        this.galleyDirection = 'East'; // Lock direction during animation
 
         // Velocity tracking
         this.velocityX = 0;
@@ -33,8 +36,17 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
         // Add to scene and enable physics
         scene.add.existing(this);
         scene.physics.add.existing(this);
-        this.setCollideWorldBounds(true);
-        this.setBounce(0.2);
+        
+        // Make physics body smaller than visual size and longer than tall
+        // Use ship type specific hitbox scales, or fall back to defaults
+        const bodyScaleX = this.shipType.hitboxScaleX || 0.25;
+        const bodyScaleY = this.shipType.hitboxScaleY || 0.15;
+        this.body.setSize(this.size * bodyScaleX, this.size * bodyScaleY);
+        this.body.setCollideWorldBounds(true);
+        this.body.setBounce(0.2);
+        
+        // Create hitbox visualization
+        this.createHitboxCircle();
     }
     
     createVisuals() {
@@ -62,39 +74,61 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
         }
         this.setDisplaySize(this.size, this.size);
     }
+    
+    createHitboxCircle() {
+        // Create graphics object for hitbox circle
+        this.hitboxCircle = this.scene.add.graphics();
+        this.hitboxCircle.setDepth(1000); // Ensure it's drawn on top
+        this.updateHitboxCircle();
+    }
+    
+    updateHitboxCircle() {
+        if (!this.hitboxCircle) return;
+        
+        this.hitboxCircle.clear();
+        
+        // Get the actual physics body dimensions directly
+        const body = this.body;
+        const width = body.width;
+        const height = body.height;
+        
+        // Draw rectangle (red for player, blue for enemies)
+        const color = this.isPlayer ? 0xFF0000 : 0x0000FF;
+        this.hitboxCircle.lineStyle(3, color, 0.8);
+        
+        if (this.needsOffset === 1) {
+            const offsetX = -width/2;
+            const offsetY = -height/2;
+            this.hitboxCircle.strokeRect(this.x + offsetX, this.y + offsetY, width, height);
+            
+            // Also adjust the actual physics body position for galleys
+            this.body.setOffset(this.shipType.hitboxOffsetX || 0, this.shipType.hitboxOffsetY || 0);
+        } else {
+            // Normal centered positioning for non-galley ships
+            this.hitboxCircle.strokeRect(this.x - width/2, this.y - height/2, width, height);
+        }
+    }
 
-    updateSpriteDirection() {
+updateSpriteDirection() {
+    // Determine direction based on facing angle
     const cosAngle = Math.cos(this.facingAngle);
     const direction = cosAngle > 0 ? 'East' : 'West';
     
     if (this.isGalley) {
-        const isMoving = Math.abs(this.velocityX) > 0.1 || Math.abs(this.velocityY) > 0.1;
-        
-        if (direction === 'East') {
-            if (isMoving) {
-                this.galleyAnimationTimer += this.scene.game.lastFrame || 16;
-                if (this.galleyAnimationTimer >= this.galleyAnimationSpeed) {
-                    this.galleyAnimationFrame = this.galleyAnimationFrame === 3 ? 1 : this.galleyAnimationFrame + 1;
-                    this.galleyAnimationTimer = 0;
-                }
+        // Only animate when ship is actually moving
+        if (Math.abs(this.velocityX) > 0.5 || Math.abs(this.velocityY) > 0.5) {
+            this.galleyAnimationTimer += this.scene.game.lastFrame || 16;
+            if (this.galleyAnimationTimer >= this.galleyAnimationSpeed) {
+                this.galleyAnimationFrame = this.galleyAnimationFrame === 3 ? 1 : this.galleyAnimationFrame + 1;
+                this.galleyAnimationTimer = 0;
             }
-            const shipName = this.shipType.name.charAt(0).toUpperCase() + this.shipType.name.slice(1);
-            this.setTexture(`${shipName}_East_${this.galleyAnimationFrame}`);
-        } else {
-            if (isMoving) {
-                this.galleyAnimationTimer += this.scene.game.lastFrame || 16;
-                if (this.galleyAnimationTimer >= this.galleyAnimationSpeed) {
-                    this.galleyAnimationFrame = this.galleyAnimationFrame === 3 ? 1 : this.galleyAnimationFrame + 1;
-                    this.galleyAnimationTimer = 0;
-                }
-            }
-            this.setTexture(`${this.shipType.name}_West_${this.galleyAnimationFrame}`);
         }
+        this.setTexture(`${this.shipType.name}_${direction}_${this.galleyAnimationFrame}`);
+        this.setDisplaySize(this.size, this.size);
     } else {
         this.setTexture(`${this.shipType.name}_${direction}`);
     }
 }
-    
     moveForward() {
         const angle = this.facingAngle;
         const windEffect = this.scene.windSystem.getWindEffect(angle);
@@ -153,6 +187,9 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
         
         // Update sprite direction based on facing angle
         this.updateSpriteDirection();
+        
+        // Update hitbox circle position
+        this.updateHitboxCircle();
     }
     
     getCannonInfo() {

@@ -1,18 +1,21 @@
 // obstacle.js
-export class Obstacle {
+export class Obstacle extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, width, height, textureKey) {
+    super(scene, x, y, textureKey);
+    
     this.scene = scene;
-
-    // Rectangle collision area
-    this.rect = new Phaser.Geom.Rectangle(
-      x - width / 2,
-      y - height / 2,
-      width,
-      height
-    );
-
-    // Image (scaled to fit the rect)
-    this.image = scene.add.image(x, y, textureKey);
-    this.image.setDisplaySize(width, height);
+    
+    // Add to scene and enable physics
+    scene.add.existing(this);
+    scene.physics.add.existing(this, true); // true = static body
+    
+    // Set display size
+    this.setDisplaySize(width, height);
+    
+    // Set physics body size to match display size
+    this.body.setSize(width, height);
+    
+    // Apply offset to center the physics body properly (similar to ships)
+    this.body.setOffset(-width/2, -height/2);
   }
 }

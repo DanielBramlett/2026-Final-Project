@@ -77,13 +77,14 @@ export default class GameScene extends Phaser.Scene {
         this.load.image('Third_Rate_West', 'assets/Third_Rate_West.png');
         this.load.image('Second_Rate_East', 'assets/Second_Rate_East.png');
         this.load.image('Second_Rate_West', 'assets/Second_Rate_West.png');
+        this.load.image('Port', 'assets/Port.png')
     }
 
     create() {
         this.cameras.main.setBackgroundColor('#02468b');
         
         // Enable physics with arcade mode
-        this.physics.world.setBounds(0, 0, 10000, 10000);
+        this.physics.world.setBounds(0, 0, 10000, 5000);
 
         this.windSystem = new WindSystem(this, 20000); // Change wind every 20 seconds
 
@@ -92,21 +93,22 @@ export default class GameScene extends Phaser.Scene {
             this,
             2000,
             2000,
-            SHIP_TYPES.SECOND_RATE,
+            SHIP_TYPES.GALLEASS,
         );
-
-        // Create some enemy ships
-        this.enemyShips = [];
-        this.enemyShips.push(new Ship(this, this.playerShip.x + Phaser.Math.Between(-2000, 0) || this.playerShip.x + Phaser.Math.Between(0, 2000), this.playerShip.y + Phaser.Math.Between(-2000, 0) || this.playerShip.y + Phaser.Math.Between(0, 2000), SHIP_TYPES.SLOOP));
-        this.enemyShips.push(new Ship(this, this.playerShip.x + Phaser.Math.Between(-2000, 0) || this.playerShip.x + Phaser.Math.Between(0, 2000), this.playerShip.y + Phaser.Math.Between(-2000, 0) || this.playerShip.y + Phaser.Math.Between(0, 2000), SHIP_TYPES.GALLEON));
-        this.enemyShips.push(new Ship(this, this.playerShip.x + Phaser.Math.Between(-2000, 0) || this.playerShip.x + Phaser.Math.Between(0, 2000), this.playerShip.y + Phaser.Math.Between(-2000, 0) || this.playerShip.y + Phaser.Math.Between(0, 2000), SHIP_TYPES.FIRST_RATE));
-        this.enemyShips.push(new Ship(this, this.playerShip.x + Phaser.Math.Between(-2000, 0) || this.playerShip.x + Phaser.Math.Between(0, 2000), this.playerShip.y + Phaser.Math.Between(-2000, 0) || this.playerShip.y + Phaser.Math.Between(0, 2000), SHIP_TYPES.DUKE_OF_KENT));
+        this.playerShip.isPlayer = true; // Mark as player ship for red hitbox
 
         this.islands = [];
         this.islands.push(new Obstacle(this, 1500, 1500, 300, 300, 'Island'));
         this.islands.push(new Obstacle(this, 2500, 2500, 400, 400, 'Island'));
         this.islands.push(new Obstacle(this, 2000, 1000, 200, 200, 'Island'));
         this.islands.push(new Obstacle(this, 1000, 0, 500, 500, 'Island'));
+
+        // Create some enemy ships after islands are created
+        this.enemyShips = [];
+        this.spawnEnemyShip(SHIP_TYPES.SLOOP);
+        this.spawnEnemyShip(SHIP_TYPES.GALLEON);
+        this.spawnEnemyShip(SHIP_TYPES.FIRST_RATE);
+        this.spawnEnemyShip(SHIP_TYPES.DUKE_OF_KENT);
         
         
         this.directionArrow = this.add.graphics({ x: 0, y: 0, add: false}),
@@ -117,6 +119,9 @@ export default class GameScene extends Phaser.Scene {
         
         // Set up camera to follow player
         this.cameras.main.startFollow(this.playerShip);
+        
+        // Setup physics collisions after all ships are created
+        this.setupCollisions();
         
         // Add info text
         this.infoText = this.add.text(16, 16, '', {
@@ -138,6 +143,143 @@ export default class GameScene extends Phaser.Scene {
         this.windArrow = this.add.graphics({ x: 0, y: 0, add: false });
         this.windArrow.setScrollFactor(0);
         this.add.existing(this.windArrow);
+        
+        // Add world border
+        this.addWorldBorder();
+    }
+
+    addWorldBorder() {
+        const borderWidth = 5;
+        const worldBounds = this.physics.world.bounds;
+        
+        // Create border graphics
+        const border = this.add.graphics();
+        border.lineStyle(borderWidth, 0xFF0000, 1); // Red border
+        
+        // Draw rectangle around world bounds
+        border.strokeRect(
+            worldBounds.x + borderWidth/2, 
+            worldBounds.y + borderWidth/2, 
+            worldBounds.width - borderWidth, 
+            worldBounds.height - borderWidth
+        );
+        
+        // Set scroll factor so border stays in world space
+        border.setScrollFactor(1);
+    }
+
+    setupCollisions() {
+        // Player ship collisions with islands
+        this.physics.add.collider(this.playerShip, this.islands);
+        
+        // Enemy ship collisions with islands
+        this.enemyShips.forEach(ship => {
+            this.physics.add.collider(ship, this.islands);
+        });
+        
+        // Ship-to-ship collisions with size-based physics
+        this.physics.add.overlap(this.playerShip, this.enemyShips, this.handleShipCollision, null, this);
+        
+        // Enemy ship to enemy ship collisions with size-based physics
+        for (let i = 0; i < this.enemyShips.length; i++) {
+            for (let j = i + 1; j < this.enemyShips.length; j++) {
+                this.physics.add.overlap(this.enemyShips[i], this.enemyShips[j], this.handleShipCollision, null, this);
+            }
+        }
+    }
+
+    handleShipCollision(ship1, ship2) {
+        // Determine which ship is larger
+        const ship1Larger = ship1.size >= ship2.size;
+        const largerShip = ship1Larger ? ship1 : ship2;
+        const smallerShip = ship1Larger ? ship2 : ship1;
+        
+        // If ships are the same size, both should react (normal physics)
+        if (ship1.size === ship2.size) {
+            // Apply normal collision physics
+            this.physics.world.collide(ship1, ship2);
+            return;
+        }
+        
+        // Make larger ship immovable, smaller ship movable
+        largerShip.body.setImmovable(true);
+        smallerShip.body.setImmovable(false);
+        
+        // Apply collision
+        this.physics.world.collide(largerShip, smallerShip);
+        
+        // Reset immovable state for larger ship
+        largerShip.body.setImmovable(false);
+    }
+
+    spawnEnemyShip(shipType) {
+        const minDistanceFromPlayer = (this.playerShip.size / 2) + (shipType.size / 2) + 100; // Add 100px buffer
+        let x, y, distanceFromPlayer, validPosition;
+        let attempts = 0;
+        const maxAttempts = 100;
+        
+        do {
+            validPosition = true;
+            
+            // Try to spawn in a random position around the player
+            const angle = Phaser.Math.Between(0, 360) * (Math.PI / 180);
+            const spawnDistance = Phaser.Math.Between(minDistanceFromPlayer, 2000);
+            
+            x = this.playerShip.x + Math.cos(angle) * spawnDistance;
+            y = this.playerShip.y + Math.sin(angle) * spawnDistance;
+            
+            // Calculate distance from player
+            const dx = x - this.playerShip.x;
+            const dy = y - this.playerShip.y;
+            distanceFromPlayer = Math.sqrt(dx * dx + dy * dy);
+            
+            // Check if too close to player
+            if (distanceFromPlayer < minDistanceFromPlayer) {
+                validPosition = false;
+            }
+            
+            // Check collision with islands
+            for (const island of this.islands) {
+                const islandDx = x - island.x;
+                const islandDy = y - island.y;
+                const islandDistance = Math.sqrt(islandDx * islandDx + islandDy * islandDy);
+                
+                // Calculate minimum distance from island (island size + ship size + buffer)
+                const islandRadius = Math.max(island.displayWidth, island.displayHeight) / 2;
+                const shipRadius = shipType.size / 2;
+                const minIslandDistance = islandRadius + shipRadius + 50; // 50px buffer
+                
+                if (islandDistance < minIslandDistance) {
+                    validPosition = false;
+                    break;
+                }
+            }
+            
+            // Check collision with existing enemy ships
+            if (validPosition) {
+                for (const existingShip of this.enemyShips) {
+                    const shipDx = x - existingShip.x;
+                    const shipDy = y - existingShip.y;
+                    const shipDistance = Math.sqrt(shipDx * shipDx + shipDy * shipDy);
+                    
+                    // Calculate minimum distance from existing ship (both ship sizes + buffer)
+                    const existingShipRadius = existingShip.size / 2;
+                    const newShipRadius = shipType.size / 2;
+                    const minShipDistance = existingShipRadius + newShipRadius + 100; // 100px buffer
+                    
+                    if (shipDistance < minShipDistance) {
+                        validPosition = false;
+                        break;
+                    }
+                }
+            }
+            
+            attempts++;
+        } while (!validPosition && attempts < maxAttempts);
+        
+        // Create the enemy ship at the valid position
+        const enemyShip = new Ship(this, x, y, shipType);
+        this.enemyShips.push(enemyShip);
     }
 
     setupInput() {
