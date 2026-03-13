@@ -20,6 +20,20 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
         this.hitboxOffsetY = shipType.hitboxOffsetY;
         this.needsOffset = shipType.needsOffset || 0;
 
+        // Trade and inventory properties
+        this.gold = 1000; // Starting gold
+        this.tradeGoods = {
+            food: 0,
+            cannonballs: 0,
+            rum: 0,
+            suger: 0,
+            iron: 0,
+            Bronze: 0,
+            Copper: 0,
+            Gold: 0,
+            coal: 0
+        };
+
         this.galleyAnimationFrame = 1; // Track animation frame for galleys
         this.galleyAnimationTimer = 0; // Timer for galley animation
         this.galleyAnimationSpeed = 300; // Time between animation frames in milliseconds
@@ -197,5 +211,54 @@ updateSpriteDirection() {
             count: this.cannons,
             fireRate: 1000 / this.cannons
         };
+    }
+
+    getCurrentCargo() {
+        return Object.values(this.tradeGoods).reduce((total, amount) => total + amount, 0);
+    }
+
+    getAvailableCargoSpace() {
+        return this.cargoMax - this.getCurrentCargo();
+    }
+
+    canAfford(cost) {
+        return this.gold >= cost;
+    }
+
+    canAddCargo(amount) {
+        return this.getAvailableCargoSpace() >= amount;
+    }
+
+    purchaseTradeGood(goodType, amount, costPerUnit) {
+        const totalCost = amount * costPerUnit;
+        
+        if (!this.canAfford(totalCost)) {
+            return { success: false, message: 'Not enough gold!' };
+        }
+        
+        if (!this.canAddCargo(amount)) {
+            return { success: false, message: 'Not enough cargo space!' };
+        }
+        
+        this.gold -= totalCost;
+        this.tradeGoods[goodType] += amount;
+        this.cargo = this.getCurrentCargo();
+        
+        return { success: true, message: `Purchased ${amount} ${goodType} for ${totalCost} gold!` };
+    }
+
+    sellTradeGood(goodType, amount, sellPricePerUnit) {
+        // Check if player has enough of the good to sell
+        if (this.tradeGoods[goodType] < amount) {
+            return { success: false, message: 'Not enough goods to sell!' };
+        }
+        
+        const totalRevenue = amount * sellPricePerUnit;
+        
+        this.gold += totalRevenue;
+        this.tradeGoods[goodType] -= amount;
+        this.cargo = this.getCurrentCargo();
+        
+        return { success: true, message: `Sold ${amount} ${goodType} for ${totalRevenue} gold!` };
     }
 }

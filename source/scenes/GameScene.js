@@ -2,6 +2,7 @@ import Ship from '../entities/Ship.js';
 import { SHIP_TYPES } from '../constants/shipTypes.js';
 import WindSystem from '../systems/WindSystem.js'; 
 import { Obstacle } from '../systems/Obstacle.js';
+import { Port } from '../systems/Port.js';
 
 export default class GameScene extends Phaser.Scene {
     constructor() {
@@ -93,7 +94,7 @@ export default class GameScene extends Phaser.Scene {
             this,
             2000,
             2000,
-            SHIP_TYPES.GALLEASS,
+            SHIP_TYPES.SLOOP,
         );
         this.playerShip.isPlayer = true; // Mark as player ship for red hitbox
 
@@ -102,6 +103,12 @@ export default class GameScene extends Phaser.Scene {
         this.islands.push(new Obstacle(this, 2500, 2500, 400, 400, 'Island'));
         this.islands.push(new Obstacle(this, 2000, 1000, 200, 200, 'Island'));
         this.islands.push(new Obstacle(this, 1000, 0, 500, 500, 'Island'));
+
+        // Create ports
+        this.ports = [];
+        this.ports.push(new Port(this, 3000, 1500, 200, 150, 'Port', 'Kingston Harbor'));
+        this.ports.push(new Port(this, 1200, 2500, 200, 150, 'Port', 'Nassau Port'));
+        this.ports.push(new Port(this, 3500, 3000, 200, 150, 'Port', 'Port Royal'));
 
         // Create some enemy ships after islands are created
         this.enemyShips = [];
@@ -148,6 +155,60 @@ export default class GameScene extends Phaser.Scene {
         this.addWorldBorder();
     }
 
+    changePlayerShip(newShipType) {
+        // Store old position, velocity, and facing angle
+        const oldX = this.playerShip.x;
+        const oldY = this.playerShip.y;
+        const oldVelocityX = this.playerShip.velocityX;
+        const oldVelocityY = this.playerShip.velocityY;
+        const oldFacingAngle = this.playerShip.facingAngle;
+        const oldSize = this.playerShip.size;
+        
+        // Destroy old player ship
+        this.playerShip.hitboxCircle.destroy();
+        this.playerShip.destroy();
+        
+        // Create new player ship at the same center position (no size compensation)
+        this.playerShip = new Ship(this, oldX, oldY, newShipType);
+        this.playerShip.isPlayer = true; // Mark as player ship for red hitbox
+        this.playerShip.velocityX = oldVelocityX;
+        this.playerShip.velocityY = oldVelocityY;
+        this.playerShip.facingAngle = oldFacingAngle;
+        
+        // Update camera to follow new ship
+        this.cameras.main.startFollow(this.playerShip);
+        
+        // Update collisions with new player ship
+        this.physics.add.collider(this.playerShip, this.islands);
+        this.physics.add.collider(this.playerShip, this.ports);
+        this.physics.add.overlap(this.playerShip, this.enemyShips, this.handleShipCollision, null, this);
+        
+        // Update all ports to recognize the new player ship
+        this.ports.forEach(port => {
+            // Remove old overlap if it exists
+            if (port.contactOverlap) {
+                port.contactOverlap.destroy();
+            }
+            
+            // Create new overlap with the new player ship
+            port.contactOverlap = this.physics.add.overlap(
+                this.playerShip,
+                port.detectionZone,
+                (player, zone) => {
+                    if (!port.playerInContact) {
+                        console.log('Port: Player entered contact zone for', port.portName);
+                        port.playerInContact = true;
+                        port.showContactPopup();
+                    }
+                },
+                null,
+                port
+            );
+        });
+        
+        console.log(`Player ship changed to: ${newShipType.name} (size: ${oldSize} -> ${newShipType.size})`);
+    }
+
     addWorldBorder() {
         const borderWidth = 5;
         const worldBounds = this.physics.world.bounds;
@@ -172,9 +233,13 @@ export default class GameScene extends Phaser.Scene {
         // Player ship collisions with islands
         this.physics.add.collider(this.playerShip, this.islands);
         
+        // Player ship collisions with ports
+        this.physics.add.collider(this.playerShip, this.ports);
+        
         // Enemy ship collisions with islands
         this.enemyShips.forEach(ship => {
             this.physics.add.collider(ship, this.islands);
+            this.physics.add.collider(ship, this.ports);
         });
         
         // Ship-to-ship collisions with size-based physics
@@ -255,6 +320,25 @@ export default class GameScene extends Phaser.Scene {
                 }
             }
             
+            // Check collision with ports
+            if (validPosition) {
+                for (const port of this.ports) {
+                    const portDx = x - port.x;
+                    const portDy = y - port.y;
+                    const portDistance = Math.sqrt(portDx * portDx + portDy * portDy);
+                    
+                    // Calculate minimum distance from port (port size + ship size + buffer)
+                    const portRadius = Math.max(port.displayWidth, port.displayHeight) / 2;
+                    const shipRadius = shipType.size / 2;
+                    const minPortDistance = portRadius + shipRadius + 100; // 100px buffer
+                    
+                    if (portDistance < minPortDistance) {
+                        validPosition = false;
+                        break;
+                    }
+                }
+            }
+            
             // Check collision with existing enemy ships
             if (validPosition) {
                 for (const existingShip of this.enemyShips) {
@@ -288,11 +372,13 @@ export default class GameScene extends Phaser.Scene {
             s: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S),
             a: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A),
             d: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D),
-            i: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.I)
+            i: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.I),
+            e: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E)
         };
         this.infoBoxVisible = true;
         this.infoBoxToggleDelay =0;
         this.infoBoxToggleDelayMax = 150; // milliseconds
+        this.cargoMenuVisible = false;
     }
 
     update(time, delta) {
@@ -309,6 +395,15 @@ export default class GameScene extends Phaser.Scene {
         }
         if (this.keys.i.isDown) {
             this.infoBoxToggled = false;
+        }
+        
+        // Handle E key for cargo menu
+        if (Phaser.Input.Keyboard.JustDown(this.keys.e)) {
+            if (this.cargoMenuVisible) {
+                this.hideCargoMenu();
+            } else {
+                this.showCargoMenu();
+            }
         }
         
         // Handle player input
@@ -337,6 +432,9 @@ export default class GameScene extends Phaser.Scene {
         // Update enemy ships
         this.enemyShips.forEach(ship => ship.update(time, delta));
         
+        // Update ports
+        this.ports.forEach(port => port.update());
+        
 const arrowDistance = this.playerShip.size / 2 + 30;
 const arrowX = this.playerShip.x + Math.cos(this.playerShip.facingAngle) * arrowDistance;
 const arrowY = this.playerShip.y + Math.sin(this.playerShip.facingAngle) * arrowDistance;
@@ -358,6 +456,7 @@ this.directionArrow.fillPath();
 // Update info text
         this.infoText.setText([
             `Ship: ${this.playerShip.shipType.name}`,
+            `Gold: ${this.playerShip.gold}`,
             `Cannons: ${this.playerShip.cannons}`,
             `Speed: ${this.playerShip.speed}`,
             `Turn Speed: ${this.playerShip.turnSpeed}`,
@@ -366,6 +465,7 @@ this.directionArrow.fillPath();
             `Crew: ${this.playerShip.crew}/${this.playerShip.crewMax}`,
             `Controls: W/S - For/Back`,
             `A/D - Rotate`,
+            `E - Cargo`,
             `I - Toggle Info`
         ]);
         const wind = this.windSystem.getWindEffect(this.playerShip.facingAngle);
@@ -388,5 +488,82 @@ this.directionArrow.fillPath();
             arrowSize / 2, arrowSize / 2
         ));
         this.windArrow.restore();
+    }
+    
+    showCargoMenu() {
+        if (this.cargoMenuVisible) return;
+        
+        this.cargoMenuVisible = true;
+        
+        const menuX = this.cameras.main.width / 2;
+        const menuY = this.cameras.main.height / 2;
+        
+        // Create cargo menu background
+        this.cargoBackground = this.add.rectangle(
+            menuX, menuY, 600, 500, 0x000000, 0.9
+        );
+        this.cargoBackground.setScrollFactor(0);
+        this.cargoBackground.setDepth(1000);
+        
+        // Create cargo menu title
+        this.cargoTitle = this.add.text(
+            menuX, menuY - 180, 'Cargo Hold', {
+                fontSize: '48px',
+                fill: '#fff',
+                backgroundColor: '#000000',
+                padding: { x: 10, y: 5 }
+            }
+        );
+        this.cargoTitle.setScrollFactor(0);
+        this.cargoTitle.setDepth(1001);
+        this.cargoTitle.setOrigin(0.5, 0.5);
+        
+        // Create cargo info text
+        const cargoInfo = [
+            `Gold: ${this.playerShip.gold}`,
+            `Cargo Space: ${this.playerShip.getCurrentCargo()} / ${this.playerShip.cargoMax}`,
+            '',
+            'Trade Goods:'
+        ];
+        
+        // Add only the trade goods that the player has (amount > 0)
+        Object.entries(this.playerShip.tradeGoods).forEach(([goodType, amount]) => {
+            if (amount > 0) {
+                // Format the good name to be more readable (capitalize first letter, handle special cases)
+                const formattedName = goodType.charAt(0).toUpperCase() + goodType.slice(1).toLowerCase();
+                cargoInfo.push(`${formattedName}: ${amount} units`);
+            }
+        });
+        
+        // Add empty line and close instruction if there are any goods, otherwise show empty message
+        if (cargoInfo.length > 4) {
+            cargoInfo.push('', 'Press E to close');
+        } else {
+            cargoInfo.push('(No trade goods in cargo)', '', 'Press E to close');
+        }
+        
+        this.cargoText = this.add.text(
+            menuX, menuY, cargoInfo.join('\n'), {
+                fontSize: '24px',
+                fill: '#fff',
+                backgroundColor: '#000000',
+                padding: { x: 15, y: 10 },
+                align: 'center'
+            }
+        );
+        this.cargoText.setScrollFactor(0);
+        this.cargoText.setDepth(1001);
+        this.cargoText.setOrigin(0.5, 0.5);
+    }
+    
+    hideCargoMenu() {
+        if (!this.cargoMenuVisible) return;
+        
+        this.cargoMenuVisible = false;
+        
+        // Destroy cargo menu elements
+        if (this.cargoBackground) this.cargoBackground.destroy();
+        if (this.cargoTitle) this.cargoTitle.destroy();
+        if (this.cargoText) this.cargoText.destroy();
     }
 }
