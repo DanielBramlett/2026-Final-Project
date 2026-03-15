@@ -12,6 +12,11 @@ export class Port extends Obstacle {
         this.menuOptions = [];
         this.selectedOption = 0;
         
+        // Debug mode state
+        this.debugMode = false;
+        this.debugKeyG = null;
+        this.debugKeyJ = null;
+        
         // Dynamic pricing system
         this.baseGoods = [
             { name: 'Food', type: 'food', basePrice: 10, description: 'Essential supplies for your crew' },
@@ -39,7 +44,7 @@ export class Port extends Obstacle {
         });
         
         // Create a larger detection zone for easier activation
-        const detectionRadius = Math.max(width, height) * 2.5; // 1.5x the larger dimension
+        const detectionRadius = Math.max(width, height) * 3; // 2.5x the larger dimension
         this.detectionZone = scene.add.circle(x, y, detectionRadius, 0x00ff00, 0);
         scene.physics.add.existing(this.detectionZone, true);
         
@@ -90,6 +95,10 @@ export class Port extends Obstacle {
         
         // Set up dock key handler
         this.dockKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.C);
+        
+        // Set up debug mode keys
+        this.debugKeyG = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.G);
+        this.debugKeyJ = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.J);
     }
     
     updatePrices() {
@@ -215,9 +224,17 @@ export class Port extends Obstacle {
                 }
             ),
             this.scene.add.text(
-                menuX, menuY + 60, 'Ship Inventory', {
+                menuX, menuY + 60, 'Buy Ships', {
                     fontSize: '30px',
                     fill: this.selectedOption === 2 ? '#ffff00' : '#fff',
+                    backgroundColor: '#000000',
+                    padding: { x: 10, y: 5 }
+                }
+            ),
+            this.scene.add.text(
+                menuX, menuY + 110, 'Ship Inventory', {
+                    fontSize: '30px',
+                    fill: this.selectedOption === 3 ? '#ffff00' : '#fff',
                     backgroundColor: '#000000',
                     padding: { x: 10, y: 5 }
                 }
@@ -232,7 +249,7 @@ export class Port extends Obstacle {
         
         // Create instructions
         this.menuInstructions = this.scene.add.text(
-            menuX, menuY + 115, 'Use UP/DOWN to select', {
+            menuX, menuY + 165, 'Use UP/DOWN to select', {
                 fontSize: '30px',
                 fill: '#ccc',
                 backgroundColor: '#000000',
@@ -245,7 +262,7 @@ export class Port extends Obstacle {
         
         // Create second instruction line
         this.menuInstructions2 = this.scene.add.text(
-            menuX, menuY + 150, 'ENTER to confirm, ESC to close', {
+            menuX, menuY + 200, 'ENTER to confirm, ESC to close', {
                 fontSize: '28px',
                 fill: '#ccc',
                 backgroundColor: '#000000',
@@ -351,8 +368,302 @@ export class Port extends Obstacle {
                 this.showSellGoodsMenu();
                 break;
             case 2:
+                this.showBuyShipsMenu();
+                break;
+            case 3:
                 this.showShipInventory();
                 break;
+        }
+    }
+    
+    showBuyShipsMenu() {
+        // Hide current menu
+        this.hideMenu();
+        
+        // Create buy ships menu
+        const menuX = this.scene.cameras.main.width / 2;
+        const menuY = this.scene.cameras.main.height / 2;
+        
+        const buyBackground = this.scene.add.rectangle(
+            menuX, menuY, 750, 700, 0x000000, 0.9
+        );
+        buyBackground.setScrollFactor(0);
+        buyBackground.setDepth(1000);
+        this.buyBackground = buyBackground; // Store for cleanup
+        
+        const buyTitle = this.scene.add.text(
+            menuX, menuY - 270, `Buy Ships${this.debugMode ? ' (DEBUG MODE)' : ''}`, {
+            fontSize: '60px',
+            fill: this.debugMode ? '#ff00ff' : '#fff',
+            backgroundColor: '#000000',
+            padding: { x: 10, y: 5 }
+        }
+        );
+        buyTitle.setScrollFactor(0);
+        buyTitle.setDepth(1001);
+        buyTitle.setOrigin(0.5, 0.5);
+        this.buyTitle = buyTitle; // Store for cleanup
+        
+        // Define available ships for purchase (exclude ship w/o models and already owned ships)
+        const excludedShips = this.debugMode ? [] : ['HMS_VICTORY', 'ORIENT', 'SANTTÌSIMA_TRINIDAD', 'URCA_DE_LIMA'];
+        const playerOwnedShips = this.debugMode ? [] : (this.scene.playerShip.ownedShips || ['SLOOP']); // Default to Sloop if no owned ships
+        
+        this.availableShips = Object.entries(SHIP_TYPES).filter(([key, ship]) => 
+            !excludedShips.includes(key) && !playerOwnedShips.includes(key)
+        );
+        
+        // Add and define ship price
+        this.availableShips = this.availableShips.map(([key, ship]) => {
+            const basePrice = this.debugMode ? 0 : (ship.size * 2 + ship.cannons * 5 + ship.cargoMax * 2); // Pricing formula (free in debug mode)
+            return [key, ship, basePrice];
+        });
+        
+        if (this.availableShips.length === 0) {
+            // Show no ships message
+            const noShipsText = this.scene.add.text(
+                menuX, menuY, 
+                'No ships available for purchase!\n\nPress ESC to return to main menu', {
+                fontSize: '30px',
+                fill: '#fff',
+                backgroundColor: '#000000',
+                padding: { x: 15, y: 10 },
+                align: 'center'
+            }
+            );
+            noShipsText.setScrollFactor(0);
+            noShipsText.setDepth(1001);
+            noShipsText.setOrigin(0.5, 0.5);
+            
+            // Add close handler
+            const escapeKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+            escapeKey.once('down', () => {
+                buyBackground.destroy();
+                buyTitle.destroy();
+                noShipsText.destroy();
+                escapeKey.destroy();
+                this.showMenu(); // Return to main menu
+            });
+            return;
+        }
+        
+        this.selectedBuyShipIndex = 0;
+        
+        // Create scrollable ship list
+        this.buyShipsScrollOffset = 0;
+        this.maxBuyShipsScrollOffset = Math.max(0, (this.availableShips.length - 4) * 120);
+        
+        // Create scrollable container for ships
+        this.buyShipsContainer = this.scene.add.container(menuX, menuY - 80);
+        this.buyShipsContainer.setScrollFactor(0);
+        this.buyShipsContainer.setDepth(1001);
+        
+        this.updateBuyShipsList();
+        
+        // Add player status info
+        const buyStatusText = this.scene.add.text(
+            menuX, menuY - 200, 
+            `Gold: ${this.scene.playerShip.gold}`, {
+            fontSize: '28px',
+            fill: '#ffff00',
+            backgroundColor: '#000000',
+            padding: { x: 10, y: 5 }
+        }
+        );
+        buyStatusText.setScrollFactor(0);
+        buyStatusText.setDepth(1001);
+        buyStatusText.setOrigin(0.5, 0.5);
+        this.buyStatusText = buyStatusText; // Store for cleanup
+        
+        // Add instructions
+        const buyInstructionText = this.scene.add.text(
+            menuX, menuY + 330, 
+            `UP/DOWN: Select ship |ENTER: Purchase | ESC: Back${this.debugMode ? ' | FREE SHIPS!' : ''}`, {
+            fontSize: '24px',
+            fill: this.debugMode ? '#ff00ff' : '#ccc',
+            backgroundColor: '#000000',
+            padding: { x: 10, y: 5 },
+            align: 'center'
+        }
+        );
+        buyInstructionText.setScrollFactor(0);
+        buyInstructionText.setDepth(1001);
+        buyInstructionText.setOrigin(0.5, 0.5);
+        this.buyInstructionText = buyInstructionText; // Store for cleanup
+        
+        // Add purchase result text (initially hidden)
+        this.buyResultText = this.scene.add.text(
+            menuX, menuY + 345, '', {
+            fontSize: '22px',
+            fill: '#00ff00',
+            backgroundColor: '#000000',
+            padding: { x: 10, y: 5 }
+        }
+        );
+        this.buyResultText.setScrollFactor(0);
+        this.buyResultText.setDepth(1001);
+        this.buyResultText.setOrigin(0.5, 0.5);
+        this.buyResultText.setVisible(false);
+        
+        // Set up buy keys
+        this.buyKeys = {
+            up: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP),
+            down: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN),
+            enter: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER),
+            escape: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
+        };
+    }
+    
+    updateBuyShipsList() {
+        if (!this.availableShips || this.availableShips.length === 0) {
+            return;
+        }
+        
+        // Clear existing ship texts
+        this.buyShipsContainer.removeAll(true);
+        
+        // Create ship entries for visible range
+        const startIndex = Math.floor(this.buyShipsScrollOffset / 120);
+        const endIndex = Math.min(startIndex + 4, this.availableShips.length);
+        
+        for (let i = startIndex; i < endIndex; i++) {
+            const [key, ship, price] = this.availableShips[i];
+            const yOffset = (i * 120) - this.buyShipsScrollOffset - 60;
+            
+            // Determine if this ship is selected
+            const isSelected = (i === this.selectedBuyShipIndex);
+            const shipColor = isSelected ? '#ffff00' : '#fff';
+            const canAfford = this.scene.playerShip.gold >= price;
+            const priceColor = canAfford ? '#00ff00' : '#ff0000';
+            
+            // Ship name and price
+            const nameText = this.scene.add.text(0, yOffset, 
+                `${ship.name} - ${price === 0 ? 'FREE' : price + ' gold'}`, {
+                fontSize: '28px',
+                fill: canAfford ? shipColor : '#888888',
+                backgroundColor: 'transparent',
+                padding: { x: 5, y: 2 }
+            });
+            nameText.setOrigin(0.5, 0.5);
+            
+            // Ship stats
+            const statsText = this.scene.add.text(0, yOffset + 25, 
+                `Size: ${ship.size} | Speed: ${ship.speed} | Cannons: ${ship.cannons}`, {
+                fontSize: '20px',
+                fill: canAfford ? (isSelected ? '#ffff00' : '#ccc') : '#666666',
+                backgroundColor: 'transparent',
+                padding: { x: 5, y: 2 }
+            });
+            statsText.setOrigin(0.5, 0.5);
+            
+            // Cargo and crew
+            const detailsText = this.scene.add.text(0, yOffset + 50, 
+                `Cargo: ${ship.cargoMax} | Crew: ${ship.crewMax}`, {
+                fontSize: '20px',
+                fill: canAfford ? (isSelected ? '#ffff00' : '#aaa') : '#555555',
+                backgroundColor: 'transparent',
+                padding: { x: 5, y: 2 }
+            });
+            detailsText.setOrigin(0.5, 0.5);
+            
+            // Affordability indicator (only for selected item)
+            if (isSelected) {
+                const affordText = this.scene.add.text(0, yOffset + 75, 
+                    this.debugMode ? 'DEBUG MODE - Free!' : (canAfford ? 'Can afford!' : 'Not enough gold!'), {
+                    fontSize: '22px',
+                    fill: this.debugMode ? '#ff00ff' : priceColor,
+                    backgroundColor: 'transparent',
+                    padding: { x: 5, y: 2 }
+                });
+                affordText.setOrigin(0.5, 0.5);
+                this.buyShipsContainer.add([nameText, statsText, detailsText, affordText]);
+            } else {
+                this.buyShipsContainer.add([nameText, statsText, detailsText]);
+            }
+        }
+    }
+    
+    purchaseShip() {
+        if (this.selectedBuyShipIndex >= 0 && this.selectedBuyShipIndex < this.availableShips.length) {
+            const [shipKey, ship, price] = this.availableShips[this.selectedBuyShipIndex];
+            
+            if (!this.debugMode && this.scene.playerShip.gold < price) {
+                this.buyResultText.setText('Not enough gold!');
+                this.buyResultText.setFill('#ff0000');
+                this.buyResultText.setVisible(true);
+                
+                setTimeout(() => {
+                    if (this.buyResultText) {
+                        this.buyResultText.setVisible(false);
+                    }
+                }, 2000);
+                return;
+            }
+            
+            // Purchase the ship (deduct gold only if not in debug mode)
+            if (!this.debugMode) {
+                this.scene.playerShip.gold -= price;
+            }
+            
+            // Add ship to player's owned ships
+            if (!this.scene.playerShip.ownedShips) {
+                this.scene.playerShip.ownedShips = ['SLOOP'];
+            }
+            this.scene.playerShip.ownedShips.push(shipKey);
+            
+            // Show success message
+            const purchaseMessage = this.debugMode ? 
+                `DEBUG: Acquired ${ship.name} for free!` : 
+                `Purchased ${ship.name} for ${price} gold!`;
+            this.buyResultText.setText(purchaseMessage);
+            this.buyResultText.setFill(this.debugMode ? '#ff00ff' : '#00ff00');
+            this.buyResultText.setVisible(true);
+            
+            // Update status display
+            this.buyStatusText.setText(`Gold: ${this.scene.playerShip.gold}`);
+            
+            // Remove purchased ship from available ships
+            this.availableShips.splice(this.selectedBuyShipIndex, 1);
+            
+            if (this.selectedBuyShipIndex >= this.availableShips.length) {
+                this.selectedBuyShipIndex = Math.max(0, this.availableShips.length - 1);
+            }
+            
+            // Update scroll limits
+            this.maxBuyShipsScrollOffset = Math.max(0, (this.availableShips.length - 4) * 120);
+            if (this.buyShipsScrollOffset > this.maxBuyShipsScrollOffset) {
+                this.buyShipsScrollOffset = this.maxBuyShipsScrollOffset;
+            }
+            
+            // Update ships list
+            this.updateBuyShipsList();
+            
+            // Close menu if no more ships available
+            if (this.availableShips.length === 0) {
+                setTimeout(() => {
+                    this.cleanupBuyMenu();
+                    this.showMenu();
+                }, 2000);
+            } else {
+                // Hide result after 2 seconds
+                setTimeout(() => {
+                    if (this.buyResultText) {
+                        this.buyResultText.setVisible(false);
+                    }
+                }, 2000);
+            }
+        }
+    }
+    
+    cleanupBuyMenu() {
+        if (this.buyBackground) this.buyBackground.destroy();
+        if (this.buyTitle) this.buyTitle.destroy();
+        if (this.buyShipsContainer) this.buyShipsContainer.destroy();
+        if (this.buyStatusText) this.buyStatusText.destroy();
+        if (this.buyInstructionText) this.buyInstructionText.destroy();
+        if (this.buyResultText) this.buyResultText.destroy();
+        if (this.buyKeys) {
+            Object.values(this.buyKeys).forEach(key => key.destroy());
+            this.buyKeys = null;
         }
     }
     
@@ -419,11 +730,12 @@ export class Port extends Obstacle {
         // Add instructions
         const instructionText = this.scene.add.text(
             menuX, menuY + 305, 
-            'UP/DOWN: Select good | LEFT/RIGHT: Adjust amount | ENTER: Purchase | ESC: Back', {
+            'UP/DOWN: Select good | LEFT/RIGHT: Adjust amount\nENTER: Purchase | ESC: Back', {
             fontSize: '24px',
             fill: '#ccc',
             backgroundColor: '#000000',
-            padding: { x: 10, y: 5 }
+            padding: { x: 10, y: 5 },
+            align: 'center'
         }
         );
         instructionText.setScrollFactor(0);
@@ -881,9 +1193,9 @@ export class Port extends Obstacle {
         inventoryTitle.setOrigin(0.5, 0.5);
         this.inventoryTitle = inventoryTitle; // Store for cleanup
         
-        // Get all ship types except the excluded ones
-        const excludedShips = ['HMS_VICTORY', 'ORIENT', 'SANTTÌSIMA_TRINIDAD', 'URCA_DE_LIMA'];
-        const ownedShips = Object.entries(SHIP_TYPES).filter(([key]) => !excludedShips.includes(key));
+        // Get player's owned ships
+        const playerOwnedShips = this.scene.playerShip.ownedShips || ['SLOOP'];
+        const ownedShips = Object.entries(SHIP_TYPES).filter(([key]) => playerOwnedShips.includes(key));
         
         console.log('Owned ships count:', ownedShips.length);
         console.log('Owned ships:', ownedShips.map(([key, ship]) => ship.name));
@@ -904,11 +1216,12 @@ export class Port extends Obstacle {
         
         // Add scroll instructions
         const scrollInstruction = this.scene.add.text(
-            menuX, menuY + 300, 'Use UP/DOWN arrows to scroll and select, ENTER to confirm ship, ESC to return', {
-            fontSize: '20px',
+            menuX, menuY + 300, 'Use UP/DOWN arrows to scroll and select,\nENTER to confirm ship, ESC to return', {
+            fontSize: '24px',
             fill: '#ffff00',
             backgroundColor: '#000000',
-            padding: { x: 10, y: 5 }
+            padding: { x: 10, y: 5 },
+            align: 'center'
         }
         );
         scrollInstruction.setScrollFactor(0);
@@ -1015,7 +1328,8 @@ export class Port extends Obstacle {
             const [shipKey, shipType] = this.ownedShips[this.selectedShipIndex];
             console.log(`Changing player ship to: ${shipType.name} (${shipKey})`);
             
-            // Call the scene method to change the player ship
+            // The scene's changePlayerShip method now handles preserving gold and cargo
+            // and spawning the player outside the port
             this.scene.changePlayerShip(shipType);
             
             // Clean up all inventory menu elements
@@ -1035,6 +1349,20 @@ export class Port extends Obstacle {
     }
     
     update() {
+        // Check for debug mode activation (G + J simultaneously)
+        if (this.debugKeyG && this.debugKeyJ && 
+            this.debugKeyG.isDown && this.debugKeyJ.isDown && 
+            !this.debugMode) {
+            this.debugMode = true;
+            console.log('DEBUG MODE ACTIVATED - All ships now available for free!');
+            
+            // If currently in buy ships menu, reload it to apply debug mode
+            if (this.buyKeys) {
+                this.cleanupBuyMenu();
+                this.showBuyShipsMenu();
+            }
+        }
+        
         // Check for C key press when in contact
         if (this.playerInContact && !this.menuActive && Phaser.Input.Keyboard.JustDown(this.dockKey)) {
             console.log('Port: C key pressed, opening menu for', this.portName);
@@ -1076,6 +1404,51 @@ export class Port extends Obstacle {
             if (Phaser.Input.Keyboard.JustDown(this.scrollKeys.enter)) {
                 // Confirm ship selection
                 this.changePlayerShip();
+            }
+        }
+        
+        // Handle buy ships menu input
+        if (this.buyKeys) {
+            if (Phaser.Input.Keyboard.JustDown(this.buyKeys.up)) {
+                // Move selection up
+                this.selectedBuyShipIndex = Math.max(0, this.selectedBuyShipIndex - 1);
+                
+                // Adjust scroll if selection is out of view
+                const visibleStart = Math.floor(this.buyShipsScrollOffset / 120);
+                const visibleEnd = Math.min(visibleStart + 4, this.availableShips.length);
+                if (this.selectedBuyShipIndex < visibleStart) {
+                    this.buyShipsScrollOffset = this.selectedBuyShipIndex * 120;
+                }
+                
+                this.updateBuyShipsList();
+            }
+            
+            if (Phaser.Input.Keyboard.JustDown(this.buyKeys.down)) {
+                // Move selection down
+                this.selectedBuyShipIndex = Math.min(this.availableShips.length - 1, this.selectedBuyShipIndex + 1);
+                
+                // Adjust scroll if selection is out of view
+                const visibleStart = Math.floor(this.buyShipsScrollOffset / 120);
+                const visibleEnd = Math.min(visibleStart + 4, this.availableShips.length);
+                if (this.selectedBuyShipIndex >= visibleEnd) {
+                    this.buyShipsScrollOffset = Math.max(0, (this.selectedBuyShipIndex - 3) * 120);
+                }
+                
+                this.updateBuyShipsList();
+            }
+            
+            if (Phaser.Input.Keyboard.JustDown(this.buyKeys.enter)) {
+                // Purchase the selected ship
+                this.purchaseShip();
+            }
+            
+            if (Phaser.Input.Keyboard.JustDown(this.buyKeys.escape)) {
+                // Clean up buy menu and return to main menu
+                this.cleanupBuyMenu();
+                // Reset debug mode when exiting buy ships menu
+                this.debugMode = false;
+                console.log('DEBUG MODE DEACTIVATED');
+                this.showMenu(); // Return to main menu
             }
         }
         

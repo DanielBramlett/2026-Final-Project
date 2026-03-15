@@ -22,6 +22,7 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
 
         // Trade and inventory properties
         this.gold = 1000; // Starting gold
+        this.ownedShips = ['SLOOP']; // Player starts with only a Sloop
         this.tradeGoods = {
             food: 0,
             cannonballs: 0,

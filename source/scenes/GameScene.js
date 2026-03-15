@@ -93,22 +93,24 @@ export default class GameScene extends Phaser.Scene {
         this.playerShip = new Ship(
             this,
             2000,
-            2000,
+            1900,
             SHIP_TYPES.SLOOP,
         );
         this.playerShip.isPlayer = true; // Mark as player ship for red hitbox
 
         this.islands = [];
-        this.islands.push(new Obstacle(this, 1500, 1500, 300, 300, 'Island'));
+        this.islands.push(new Obstacle(this, 1500, 1200, 300, 300, 'Island'));
         this.islands.push(new Obstacle(this, 2500, 2500, 400, 400, 'Island'));
         this.islands.push(new Obstacle(this, 2000, 1000, 200, 200, 'Island'));
         this.islands.push(new Obstacle(this, 1000, 0, 500, 500, 'Island'));
 
         // Create ports
         this.ports = [];
-        this.ports.push(new Port(this, 3000, 1500, 200, 150, 'Port', 'Kingston Harbor'));
-        this.ports.push(new Port(this, 1200, 2500, 200, 150, 'Port', 'Nassau Port'));
-        this.ports.push(new Port(this, 3500, 3000, 200, 150, 'Port', 'Port Royal'));
+        this.ports.push(new Port(this, 3000, 1500, 250, 200, 'Port', 'Kingston'));
+        this.ports.push(new Port(this, 1200, 2500, 250, 200, 'Port', 'Havana'));
+        this.ports.push(new Port(this, 3500, 3000, 250, 200, 'Port', 'Port Royal'));
+        this.ports.push(new Port(this, 5000, 2500, 250, 200, 'Port', 'Nassau'));
+        this.ports.push(new Port(this, 3250, 3500, 250, 200, 'Port', 'St. Thomas'));
 
         // Create some enemy ships after islands are created
         this.enemyShips = [];
@@ -156,7 +158,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     changePlayerShip(newShipType) {
-        // Store old position, velocity, and facing angle
+        // Store old position, velocity, facing angle, and player data
         const oldX = this.playerShip.x;
         const oldY = this.playerShip.y;
         const oldVelocityX = this.playerShip.velocityX;
@@ -164,13 +166,86 @@ export default class GameScene extends Phaser.Scene {
         const oldFacingAngle = this.playerShip.facingAngle;
         const oldSize = this.playerShip.size;
         
+        // Save player's gold, cargo, and owned ships
+        const savedGold = this.playerShip.gold;
+        const savedCargo = { ...this.playerShip.tradeGoods };
+        const savedOwnedShips = [...this.playerShip.ownedShips];
+        
+        // Find the nearest port to spawn outside of
+        let nearestPort = null;
+        let minDistance = Infinity;
+        this.ports.forEach(port => {
+            const distance = Phaser.Math.Distance.Between(oldX, oldY, port.x, port.y);
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearestPort = port;
+            }
+        });
+        
+        // Calculate spawn position outside the port
+        let spawnX = oldX;
+        let spawnY = oldY;
+        
+        if (nearestPort && minDistance < 800) { // If player is within 800px of a port
+            // Calculate angle from port to player
+            const angleFromPort = Math.atan2(oldY - nearestPort.y, oldX - nearestPort.x);
+            // Spawn player well outside the port along the same angle
+            const portRadius = Math.max(nearestPort.width, nearestPort.height) / 2;
+            const spawnDistance = portRadius + 650; // 650px buffer outside port
+            
+            // Try multiple spawn positions to avoid enemy ships
+            let validSpawnFound = false;
+            let attempts = 0;
+            const maxAttempts = 10; // Try 10 different angles
+            const safeSpawnDistance = 200; // Minimum distance from enemy ships
+            
+            while (!validSpawnFound && attempts < maxAttempts) {
+                const currentAngle = angleFromPort + (attempts * Math.PI / 4); // Try different angles
+                spawnX = nearestPort.x + Math.cos(currentAngle) * spawnDistance;
+                spawnY = nearestPort.y + Math.sin(currentAngle) * spawnDistance;
+                
+                // Check if spawn position is safe from enemy ships
+                validSpawnFound = true;
+                for (const enemyShip of this.enemyShips) {
+                    const distanceToEnemy = Phaser.Math.Distance.Between(spawnX, spawnY, enemyShip.x, enemyShip.y);
+                    const minSafeDistance = (newShipType.size / 2) + (enemyShip.size / 2) + safeSpawnDistance;
+                    
+                    if (distanceToEnemy < minSafeDistance) {
+                        validSpawnFound = false;
+                        break;
+                    }
+                }
+                
+                attempts++;
+            }
+            
+            // If no safe position found, use the original position as fallback
+            if (!validSpawnFound) {
+                spawnX = nearestPort.x + Math.cos(angleFromPort) * spawnDistance;
+                spawnY = nearestPort.y + Math.sin(angleFromPort) * spawnDistance;
+                console.log('No safe spawn position found, using fallback position');
+            }
+            
+            console.log(`Port: ${nearestPort.portName}, Port radius: ${portRadius}, Spawn distance: ${spawnDistance}`);
+            console.log(`Player old pos: (${oldX}, ${oldY}), New spawn pos: (${spawnX}, ${spawnY})`);
+            console.log(`Safe spawn found: ${validSpawnFound}, Attempts: ${attempts}`);
+        }
+        
         // Destroy old player ship
         this.playerShip.hitboxCircle.destroy();
         this.playerShip.destroy();
         
-        // Create new player ship at the same center position (no size compensation)
-        this.playerShip = new Ship(this, oldX, oldY, newShipType);
+        // Create new player ship at the spawn position
+        this.playerShip = new Ship(this, spawnX, spawnY, newShipType);
         this.playerShip.isPlayer = true; // Mark as player ship for red hitbox
+        
+        // Restore player's gold, cargo, and owned ships
+        this.playerShip.gold = savedGold;
+        this.playerShip.tradeGoods = savedCargo;
+        this.playerShip.ownedShips = savedOwnedShips;
+        this.playerShip.cargo = this.playerShip.getCurrentCargo();
+        
+        // Restore movement properties
         this.playerShip.velocityX = oldVelocityX;
         this.playerShip.velocityY = oldVelocityY;
         this.playerShip.facingAngle = oldFacingAngle;
@@ -207,6 +282,7 @@ export default class GameScene extends Phaser.Scene {
         });
         
         console.log(`Player ship changed to: ${newShipType.name} (size: ${oldSize} -> ${newShipType.size})`);
+        console.log(`Gold and cargo preserved. Spawned outside port at (${spawnX}, ${spawnY})`);
     }
 
     addWorldBorder() {
