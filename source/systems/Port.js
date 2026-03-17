@@ -19,15 +19,38 @@ export class Port extends Obstacle {
         
         // Dynamic pricing system
         this.baseGoods = [
-            { name: 'Food', type: 'food', basePrice: 10, description: 'Essential supplies for your crew' },
-            { name: 'Cannonballs', type: 'cannonballs', basePrice: 15, description: 'Ammunition for your cannons' },
-            { name: 'Rum', type: 'rum', basePrice: 20, description: 'Morale booster and valuable trade good' },
-            { name: 'Suger', type: 'suger', basePrice: 15, description: 'Often used to sweet food or make rum.' },
-            { name: 'Iron', type: 'iron', basePrice: 30, description: 'Used to make cannons and ammo.' },
-            { name: 'Bronze', type: 'Bronze', basePrice: 25, description: 'Alloy used to make cannons,' },
-            { name: 'Copper', type: 'Copper', basePrice: 20, description: 'Used to make bronze.' },
-            { name: 'Gold Bar', type: 'Gold', basePrice: 100, description: 'Valuable trade good.' },
-            { name: 'Coal', type: 'coal', basePrice: 10, description: 'Used as fuel for steamships.'}
+            { id: 'food', name: 'Food', type: 'supplies', basePrice: 5, description: 'Essential supplies for your crew' },
+            { id: 'cannonballs', name: 'Cannonballs', type: 'supplies', basePrice: 10, description: 'Ammunition for your cannons used on hulls' },
+            { id: 'chainshot', name: 'Chainshot', type: 'supplies', basePrice: 10, description: 'Ammunition for your cannons used on sails and crew' },
+            { id: 'grapeshot', name: 'Grapeshot', type: 'supplies', basePrice: 10, description: 'Ammunition for your cannons used on crew' },
+            { id: 'wood', name: 'Wood', type: 'supplies', basePrice: 5, description: 'Used to build and repair ships.'},
+            { id: 'rum', name: 'Rum', type: 'drink', basePrice: 20, description: 'Morale booster made from sugercane' },
+            { id: 'suger', name: 'Suger', type: 'seasoning', basePrice: 15, description: 'Often used to sweet food or make rum.' },
+            { id: 'iron', name: 'Iron', type: 'metal', basePrice: 30, description: 'Used to make cannons and ammo.' },
+            { id: 'bronze', name: 'Bronze', type: 'metal', basePrice: 25, description: 'Alloy used to make cannons,' },
+            { id: 'copper', name: 'Copper', type: 'metal', basePrice: 20, description: 'Used to make bronze.' },
+            { id: 'gold_bar', name: 'Gold Bar', type: 'valuble metal', basePrice: 100, description: 'Valuable trade good.' },
+            { id: 'coal', name: 'Coal', type: 'fuel', basePrice: 10, description: 'Used as fuel for steamships.' },
+            { id: 'salt', name: 'Salt', type: 'seasoning', basePrice: 8, description: 'Preservative and trade good.'},
+            { id: 'fish', name: 'Fish', type: 'food', basePrice: 5, description: 'Fresh fish from the sea.'},
+            { id: 'lanterns', name: 'Lanterns', type: 'craft', basePrice: 8, description: 'Light source for ships at night.' },
+            { id: 'wine', name: 'Wine', type: 'drink', basePrice: 25, description: 'Fine wine for trade.' },
+            { id: 'tea', name: 'Tea', type: 'exotic drink', basePrice: 12, description: 'Valuable trade good from the East.' },
+            { id: 'pepper', name: 'Pepper', type: 'spice', basePrice: 18, description: 'Exotic spices from India. ' },
+            { id: 'silk', name: 'Silk', type: 'silk', basePrice: 30, description: 'Luxurious fabric from the East.' },
+            { id: 'cocoa', name: 'Cocoa', type: 'seasoning', basePrice: 15, description: 'Valuable trade good from the Americas.'},
+            { id: 'oil', name: 'Oil', type: 'oil', basePrice: 10, description: 'Used in lamps and to burn enemy ships' },
+            { id: 'cannons', name: 'Cannons', type: 'firearm', basePrice: 50, description: 'Weapons for battle.' },
+            { id: 'bacon', name: 'Bacon', type: 'food', basePrice: 10, description: 'Preserved meat for sailors.' },
+            { id: 'candles', name: 'Candles', type: 'craft', basePrice: 5, description: 'Light source for ships at night.' },
+            { id: 'cutlass', name: 'Cutlass', type: 'coldarm', basePrice: 25, description: 'Used for close combat.' },
+            { id: 'saber', name: 'Saber', type: 'coldarm', basePrice: 30, description: 'Used for close combat' },
+            { id: 'flintlock_pistol', name: 'Flintlock Pistol', type: 'firearm', basePrice: 25, description: 'Common weapon for boarding' },
+            { id: 'flintlock_musket', name: 'Flintlock Musket', type: 'firearm', basePrice: 35, description: 'Long-range weapon for naval battles' },
+            { id: 'blunderbuss', name: 'Blunderbuss', type: 'firearm', basePrice: 30, description: 'Close-range weapon for boarding' },
+            { id: 'crossbow', name: 'Crossbow', type: 'weapon', basePrice: 20, description: 'long-range weapon using arrows'},
+            { id: 'arrows', name: 'Arrows', type: 'weapon', basePrice: 5, description: 'Ammunition for crossbows and bows'},
+            { id: 'steel', name: 'Steel', type: 'metal', basePrice: 25, description: 'Made using iron'},
         ];
         
         // Initialize current prices with random variations (50% to 200% of base price)
@@ -103,7 +126,7 @@ export class Port extends Obstacle {
     
     updatePrices() {
         this.currentGoods = this.currentGoods.map(good => {
-            const baseGood = this.baseGoods.find(bg => bg.type === good.type);
+            const baseGood = this.baseGoods.find(bg => bg.id === good.id);
             if (!baseGood) return good;
             
             // Calculate price change: -50% to +100% of current price
@@ -112,7 +135,7 @@ export class Port extends Obstacle {
             let newPrice = Math.round(good.price * (1 + changePercent));
             
             // Ensure price stays within bounds (50% to 200% of base price)
-            const minPrice = Math.round(baseGood.basePrice * 0.5);
+            const minPrice = Math.round(baseGood.basePrice * 0.75);
             const maxPrice = Math.round(baseGood.basePrice * 2.0);
             newPrice = Math.max(minPrice, Math.min(maxPrice, newPrice));
             
@@ -729,9 +752,9 @@ export class Port extends Obstacle {
         
         // Add instructions
         const instructionText = this.scene.add.text(
-            menuX, menuY + 305, 
+            menuX, menuY + 350, 
             'UP/DOWN: Select good | LEFT/RIGHT: Adjust amount\nENTER: Purchase | ESC: Back', {
-            fontSize: '24px',
+            fontSize: '22px',
             fill: '#ccc',
             backgroundColor: '#000000',
             padding: { x: 10, y: 5 },
@@ -789,7 +812,7 @@ export class Port extends Obstacle {
             const goodColor = isSelected ? '#ffff00' : '#fff';
             
             // Good name and price with change indicator
-            const baseGood = this.baseGoods.find(bg => bg.type === good.type);
+            const baseGood = this.baseGoods.find(bg => bg.id === good.id);
             const priceChange = good.price - baseGood.basePrice;
             const changePercent = Math.round((priceChange / baseGood.basePrice) * 100);
             const changeSymbol = changePercent > 0 ? '▲' : changePercent < 0 ? '▼' : '○';
@@ -814,7 +837,7 @@ export class Port extends Obstacle {
             descText.setOrigin(0.5, 0.5);
             
             // Current inventory
-            const currentAmount = this.scene.playerShip.tradeGoods[good.type] || 0;
+            const currentAmount = this.scene.playerShip.tradeGoods[good.id] || 0;
             const inventoryText = this.scene.add.text(0, yOffset + 50, 
                 `Current: ${currentAmount}`, {
                 fontSize: '20px',
@@ -844,7 +867,7 @@ export class Port extends Obstacle {
     purchaseTradeGood() {
         if (this.selectedGoodIndex >= 0 && this.selectedGoodIndex < this.availableGoods.length) {
             const good = this.availableGoods[this.selectedGoodIndex];
-            const result = this.scene.playerShip.purchaseTradeGood(good.type, this.purchaseAmount, good.price);
+            const result = this.scene.playerShip.purchaseTradeGood(good.id, this.purchaseAmount, good.price);
             
             // Show result message
             this.resultText.setText(result.message);
@@ -920,7 +943,7 @@ export class Port extends Obstacle {
         
         // Filter goods that player actually has
         this.playerGoods = this.currentGoods.filter(good => 
-            this.scene.playerShip.tradeGoods[good.type] > 0
+            this.scene.playerShip.tradeGoods[good.id] > 0
         );
         
         if (this.playerGoods.length === 0) {
@@ -1065,7 +1088,7 @@ export class Port extends Obstacle {
             descText.setOrigin(0.5, 0.5);
             
             // Current inventory
-            const currentAmount = this.scene.playerShip.tradeGoods[good.type] || 0;
+            const currentAmount = this.scene.playerShip.tradeGoods[good.id] || 0;
             const inventoryText = this.scene.add.text(0, yOffset + 50, 
                 `Available: ${currentAmount}`, {
                 fontSize: '20px',
@@ -1100,7 +1123,7 @@ export class Port extends Obstacle {
             const sellPricePercent = 0.6 + Math.random() * 0.2;
             const sellPrice = Math.round(good.price * sellPricePercent);
             
-            const result = this.scene.playerShip.sellTradeGood(good.type, this.sellAmount, sellPrice);
+            const result = this.scene.playerShip.sellTradeGood(good.id, this.sellAmount, sellPrice);
             
             // Show result message
             this.sellResultText.setText(result.message);
@@ -1115,7 +1138,7 @@ export class Port extends Obstacle {
                 
                 // Check if player still has goods
                 this.playerGoods = this.currentGoods.filter(good => 
-                    this.scene.playerShip.tradeGoods[good.type] > 0
+                    this.scene.playerShip.tradeGoods[good.id] > 0
                 );
                 
                 if (this.playerGoods.length === 0) {
@@ -1564,7 +1587,7 @@ export class Port extends Obstacle {
                 // Increase sell amount (max based on available goods)
                 if (this.selectedSellGoodIndex >= 0 && this.selectedSellGoodIndex < this.playerGoods.length) {
                     const good = this.playerGoods[this.selectedSellGoodIndex];
-                    const maxAmount = this.scene.playerShip.tradeGoods[good.type] || 0;
+                    const maxAmount = this.scene.playerShip.tradeGoods[good.id] || 0;
                     this.sellAmount = Math.min(maxAmount, this.sellAmount + 1);
                 }
                 this.updateSellGoodsList();

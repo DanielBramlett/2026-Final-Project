@@ -13,8 +13,8 @@ export const SHIP_TYPES = {
         windResistance: 0.8,
         isGalley: 0,
         image: 'Sloop_East',
-        hitboxScaleX: 0.35,
-        hitboxScaleY: 0.25,
+        hitboxScaleX: 0.3475,
+        hitboxScaleY: 0.24,
         needsOffset: 0
     },
      CUTTER: {
