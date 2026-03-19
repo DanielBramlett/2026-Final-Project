@@ -3,6 +3,11 @@ import { SHIP_TYPES } from '../constants/shipTypes.js';
 import WindSystem from '../systems/WindSystem.js'; 
 import { Obstacle } from '../systems/Obstacle.js';
 import { Port } from '../systems/Port.js';
+import PlayerSystem from '../systems/PlayerSystem.js';
+import EnemySystem from '../systems/EnemySystem.js';
+import CombatSystem from '../systems/CombatSystem.js';
+import AmmoUI from '../systems/AmmoUI.js';
+import StatsUI from '../systems/StatsUI.js';
 
 export default class GameScene extends Phaser.Scene {
     constructor() {
@@ -78,59 +83,170 @@ export default class GameScene extends Phaser.Scene {
         this.load.image('Third_Rate_West', 'assets/Third_Rate_West.png');
         this.load.image('Second_Rate_East', 'assets/Second_Rate_East.png');
         this.load.image('Second_Rate_West', 'assets/Second_Rate_West.png');
-        this.load.image('Port', 'assets/Port.png')
+        this.load.image('Port', 'assets/Port.png');
+        this.load.image('Cannonball', 'assets/Cannonball.png');
+        this.load.image('Chainshot', 'assets/Chainshot.png');
+        this.load.image('Grapeshot', 'assets/Grapeshot.png');
     }
 
     create() {
         this.cameras.main.setBackgroundColor('#02468b');
         
         // Enable physics with arcade mode
-        this.physics.world.setBounds(0, 0, 10000, 5000);
+        this.physics.world.setBounds(0, 0, 20000, 10000);
 
         this.windSystem = new WindSystem(this, 20000); // Change wind every 20 seconds
 
+        // Initialize player and enemy systems
+        this.playerSystem = new PlayerSystem(this);
+        this.enemySystem = new EnemySystem(this);
+        
+        // Initialize combat system
+        this.combatSystem = new CombatSystem(this);
+
         // Create player ship
-        this.playerShip = new Ship(
-            this,
-            2000,
-            1900,
+        this.playerShip = this.playerSystem.createPlayerShip(
+            8000,
+            5000,
             SHIP_TYPES.SLOOP,
         );
-        this.playerShip.isPlayer = true; // Mark as player ship for red hitbox
 
         this.islands = [];
-        this.islands.push(new Obstacle(this, 1500, 1200, 300, 300, 'Island'));
-        this.islands.push(new Obstacle(this, 2500, 2500, 400, 400, 'Island'));
-        this.islands.push(new Obstacle(this, 2000, 1000, 200, 200, 'Island'));
-        this.islands.push(new Obstacle(this, 1000, 0, 500, 500, 'Island'));
+        // Caribbean Islands (south-west region)
+        this.islands.push(new Obstacle(this, 1600, 7000, 350, 350, 'Island'));
+        this.islands.push(new Obstacle(this, 2400, 7600, 280, 280, 'Island'));
+        this.islands.push(new Obstacle(this, 1200, 8000, 250, 250, 'Island'));
+        this.islands.push(new Obstacle(this, 3000, 8400, 300, 300, 'Island'));
+        
+        // Bermuda Triangle (north-west region)
+        this.islands.push(new Obstacle(this, 2000, 1600, 400, 400, 'Island'));
+        this.islands.push(new Obstacle(this, 3600, 1200, 320, 320, 'Island'));
+        this.islands.push(new Obstacle(this, 2800, 2200, 280, 280, 'Island'));
+        
+        // Bahamas Chain (central-west)
+        this.islands.push(new Obstacle(this, 4400, 4000, 300, 300, 'Island'));
+        this.islands.push(new Obstacle(this, 5000, 3600, 250, 250, 'Island'));
+        this.islands.push(new Obstacle(this, 5600, 4400, 280, 280, 'Island'));
+        
+        // Greater Antilles (central region)
+        this.islands.push(new Obstacle(this, 7000, 5000, 450, 450, 'Island'));
+        this.islands.push(new Obstacle(this, 8000, 5600, 380, 380, 'Island'));
+        this.islands.push(new Obstacle(this, 7600, 6400, 350, 350, 'Island'));
+        
+        // Leeward Islands (north-central)
+        this.islands.push(new Obstacle(this, 9000, 3000, 300, 300, 'Island'));
+        this.islands.push(new Obstacle(this, 9600, 3600, 280, 280, 'Island'));
+        this.islands.push(new Obstacle(this, 10400, 3200, 320, 320, 'Island'));
+        
+        // Windward Islands (north-east)
+        this.islands.push(new Obstacle(this, 11600, 2400, 350, 350, 'Island'));
+        this.islands.push(new Obstacle(this, 12400, 2800, 300, 300, 'Island'));
+        this.islands.push(new Obstacle(this, 13000, 2000, 280, 280, 'Island'));
+        
+        // South American Coast (south-east)
+        this.islands.push(new Obstacle(this, 14000, 8000, 400, 400, 'Island'));
+        this.islands.push(new Obstacle(this, 15000, 7600, 350, 350, 'Island'));
+        this.islands.push(new Obstacle(this, 14400, 8800, 300, 300, 'Island'));
+        
+        // Central American Coast (south)
+        this.islands.push(new Obstacle(this, 10000, 9000, 380, 380, 'Island'));
+        this.islands.push(new Obstacle(this, 11000, 9400, 320, 320, 'Island'));
+        
+        // Florida Keys (north)
+        this.islands.push(new Obstacle(this, 6000, 800, 250, 250, 'Island'));
+        this.islands.push(new Obstacle(this, 6600, 1200, 280, 280, 'Island'));
+        this.islands.push(new Obstacle(this, 5400, 1000, 220, 220, 'Island'));
+        
+        // Yucatan Peninsula (west)
+        this.islands.push(new Obstacle(this, 3600, 5600, 420, 420, 'Island'));
+        this.islands.push(new Obstacle(this, 3000, 6200, 350, 350, 'Island'));
+        
+        // Lesser Antilles (far east)
+        this.islands.push(new Obstacle(this, 17000, 4000, 300, 300, 'Island'));
+        this.islands.push(new Obstacle(this, 17600, 4600, 280, 280, 'Island'));
+        this.islands.push(new Obstacle(this, 16400, 5000, 320, 320, 'Island'));
+        
+        // Isolated Islands (scattered)
+        this.islands.push(new Obstacle(this, 13000, 7000, 280, 280, 'Island'));
+        this.islands.push(new Obstacle(this, 15600, 2400, 300, 300, 'Island'));
+        this.islands.push(new Obstacle(this, 8400, 1600, 250, 250, 'Island'));
 
         // Create ports
         this.ports = [];
-        this.ports.push(new Port(this, 3000, 1500, 250, 200, 'Port', 'Kingston'));
-        this.ports.push(new Port(this, 1200, 2500, 250, 200, 'Port', 'Havana'));
-        this.ports.push(new Port(this, 3500, 3000, 250, 200, 'Port', 'Port Royal'));
-        this.ports.push(new Port(this, 5000, 2500, 250, 200, 'Port', 'Nassau'));
-        this.ports.push(new Port(this, 3250, 3500, 250, 200, 'Port', 'St. Thomas'));
+        
+        // Caribbean Ports (south-west region)
+        this.ports.push(new Port(this, 1800, 7200, 250, 200, 'Port', 'Port-au-Prince', 'caribbean'));
+        this.ports.push(new Port(this, 2600, 7800, 250, 200, 'Port', 'Santo Domingo', 'caribbean'));
+        this.ports.push(new Port(this, 1400, 8200, 250, 200, 'Port', 'Cartagena', 'caribbean'));
+        
+        // Bermuda Triangle Ports (north-west region)
+        this.ports.push(new Port(this, 2200, 1800, 250, 200, 'Port', 'Bermuda', 'bermuda'));
+        this.ports.push(new Port(this, 3400, 1400, 250, 200, 'Port', 'St. George', 'bermuda'));
+        
+        // Bahamas Ports (central-west)
+        this.ports.push(new Port(this, 4600, 4200, 250, 200, 'Port', 'Nassau', 'bahamas'));
+        this.ports.push(new Port(this, 5200, 3800, 250, 200, 'Port', 'Freeport', 'bahamas'));
+        
+        // Greater Antilles Ports (central region)
+        this.ports.push(new Port(this, 7200, 5200, 250, 200, 'Port', 'Kingston', 'greater_antilles'));
+        this.ports.push(new Port(this, 8200, 5800, 250, 200, 'Port', 'Santiago', 'greater_antilles'));
+        this.ports.push(new Port(this, 7800, 6600, 250, 200, 'Port', 'Port Royal', 'greater_antilles'));
+        
+        // Leeward Islands Ports (north-central)
+        this.ports.push(new Port(this, 9200, 3200, 250, 200, 'Port', 'Antigua', 'leeward_islands'));
+        this.ports.push(new Port(this, 9800, 3800, 250, 200, 'Port', 'St. Kitts', 'leeward_islands'));
+        
+        // Windward Islands Ports (north-east)
+        this.ports.push(new Port(this, 11800, 2600, 250, 200, 'Port', 'Martinique', 'windward_islands'));
+        this.ports.push(new Port(this, 12600, 3000, 250, 200, 'Port', 'St. Lucia', 'windward_islands'));
+        this.ports.push(new Port(this, 13200, 2200, 250, 200, 'Port', 'Barbados', 'windward_islands'));
+        
+        // South American Coast Ports (south-east)
+        this.ports.push(new Port(this, 14200, 8200, 250, 200, 'Port', 'Maracaibo', 'south_america'));
+        this.ports.push(new Port(this, 15200, 7800, 250, 200, 'Port', 'Caracas', 'south_america'));
+        
+        // Central American Coast Ports (south)
+        this.ports.push(new Port(this, 10200, 9200, 250, 200, 'Port', 'Veracruz', 'central_america'));
+        this.ports.push(new Port(this, 11200, 9600, 250, 200, 'Port', 'Campeche', 'central_america'));
+        
+        // Florida Ports (north)
+        this.ports.push(new Port(this, 6200, 1000, 250, 200, 'Port', 'Key West', 'florida'));
+        this.ports.push(new Port(this, 6800, 1400, 250, 200, 'Port', 'Tampa', 'florida'));
+        
+        // Yucatan Ports (west)
+        this.ports.push(new Port(this, 3800, 5800, 250, 200, 'Port', 'Merida', 'yucatan'));
+        
+        // Lesser Antilles Ports (far east)
+        this.ports.push(new Port(this, 17200, 4200, 250, 200, 'Port', 'Trinidad', 'lesser_antilles'));
+        this.ports.push(new Port(this, 16600, 5200, 250, 200, 'Port', 'Grenada', 'lesser_antilles'));
+        
+        // Isolated Island Ports
+        this.ports.push(new Port(this, 13400, 7200, 250, 200, 'Port', 'Curacao', 'lesser_antilles'));
+        this.ports.push(new Port(this, 15800, 2600, 250, 200, 'Port', 'Aruba', 'lesser_antilles'));
+        this.ports.push(new Port(this, 8600, 1800, 250, 200, 'Port', 'Turks Islands', 'bermuda'));
 
         // Create some enemy ships after islands are created
-        this.enemyShips = [];
-        this.spawnEnemyShip(SHIP_TYPES.SLOOP);
-        this.spawnEnemyShip(SHIP_TYPES.GALLEON);
-        this.spawnEnemyShip(SHIP_TYPES.FIRST_RATE);
-        this.spawnEnemyShip(SHIP_TYPES.DUKE_OF_KENT);
+        this.enemyShips = this.enemySystem.createEnemyShips();
+        
+        // Initialize ammo UI after player ship is created
+        this.ammoUI = new AmmoUI(this, this.playerShip);
+        
+        // Initialize stats UI after player ship is created
+        this.statsUI = new StatsUI(this, this.playerShip);
         
         
         this.directionArrow = this.add.graphics({ x: 0, y: 0, add: false}),
         
         
         // Setup input
-        this.setupInput();
+        this.playerSystem.setupInput();
         
         // Set up camera to follow player
         this.cameras.main.startFollow(this.playerShip);
         
         // Setup physics collisions after all ships are created
         this.setupCollisions();
+        this.enemySystem.setupCollisions();
         
         // Add info text
         this.infoText = this.add.text(16, 16, '', {
@@ -140,6 +256,7 @@ export default class GameScene extends Phaser.Scene {
             padding: { x: 10, y: 5 }
         });
         this.infoText.setScrollFactor(0);
+        this.infoText.setVisible(this.playerSystem.isInfoBoxVisible());
         this.windInfoText = this.add.text(16, 100, '', {
             fontSize: '30px',
             fill: '#fff',
@@ -157,133 +274,6 @@ export default class GameScene extends Phaser.Scene {
         this.addWorldBorder();
     }
 
-    changePlayerShip(newShipType) {
-        // Store old position, velocity, facing angle, and player data
-        const oldX = this.playerShip.x;
-        const oldY = this.playerShip.y;
-        const oldVelocityX = this.playerShip.velocityX;
-        const oldVelocityY = this.playerShip.velocityY;
-        const oldFacingAngle = this.playerShip.facingAngle;
-        const oldSize = this.playerShip.size;
-        
-        // Save player's gold, cargo, and owned ships
-        const savedGold = this.playerShip.gold;
-        const savedCargo = { ...this.playerShip.tradeGoods };
-        const savedOwnedShips = [...this.playerShip.ownedShips];
-        
-        // Find the nearest port to spawn outside of
-        let nearestPort = null;
-        let minDistance = Infinity;
-        this.ports.forEach(port => {
-            const distance = Phaser.Math.Distance.Between(oldX, oldY, port.x, port.y);
-            if (distance < minDistance) {
-                minDistance = distance;
-                nearestPort = port;
-            }
-        });
-        
-        // Calculate spawn position outside the port
-        let spawnX = oldX;
-        let spawnY = oldY;
-        
-        if (nearestPort && minDistance < 800) { // If player is within 800px of a port
-            // Calculate angle from port to player
-            const angleFromPort = Math.atan2(oldY - nearestPort.y, oldX - nearestPort.x);
-            // Spawn player well outside the port along the same angle
-            const portRadius = Math.max(nearestPort.width, nearestPort.height) / 2;
-            const spawnDistance = portRadius + 650; // 650px buffer outside port
-            
-            // Try multiple spawn positions to avoid enemy ships
-            let validSpawnFound = false;
-            let attempts = 0;
-            const maxAttempts = 10; // Try 10 different angles
-            const safeSpawnDistance = 200; // Minimum distance from enemy ships
-            
-            while (!validSpawnFound && attempts < maxAttempts) {
-                const currentAngle = angleFromPort + (attempts * Math.PI / 4); // Try different angles
-                spawnX = nearestPort.x + Math.cos(currentAngle) * spawnDistance;
-                spawnY = nearestPort.y + Math.sin(currentAngle) * spawnDistance;
-                
-                // Check if spawn position is safe from enemy ships
-                validSpawnFound = true;
-                for (const enemyShip of this.enemyShips) {
-                    const distanceToEnemy = Phaser.Math.Distance.Between(spawnX, spawnY, enemyShip.x, enemyShip.y);
-                    const minSafeDistance = (newShipType.size / 2) + (enemyShip.size / 2) + safeSpawnDistance;
-                    
-                    if (distanceToEnemy < minSafeDistance) {
-                        validSpawnFound = false;
-                        break;
-                    }
-                }
-                
-                attempts++;
-            }
-            
-            // If no safe position found, use the original position as fallback
-            if (!validSpawnFound) {
-                spawnX = nearestPort.x + Math.cos(angleFromPort) * spawnDistance;
-                spawnY = nearestPort.y + Math.sin(angleFromPort) * spawnDistance;
-                console.log('No safe spawn position found, using fallback position');
-            }
-            
-            console.log(`Port: ${nearestPort.portName}, Port radius: ${portRadius}, Spawn distance: ${spawnDistance}`);
-            console.log(`Player old pos: (${oldX}, ${oldY}), New spawn pos: (${spawnX}, ${spawnY})`);
-            console.log(`Safe spawn found: ${validSpawnFound}, Attempts: ${attempts}`);
-        }
-        
-        // Destroy old player ship
-        this.playerShip.hitboxCircle.destroy();
-        this.playerShip.destroy();
-        
-        // Create new player ship at the spawn position
-        this.playerShip = new Ship(this, spawnX, spawnY, newShipType);
-        this.playerShip.isPlayer = true; // Mark as player ship for red hitbox
-        
-        // Restore player's gold, cargo, and owned ships
-        this.playerShip.gold = savedGold;
-        this.playerShip.tradeGoods = savedCargo;
-        this.playerShip.ownedShips = savedOwnedShips;
-        this.playerShip.cargo = this.playerShip.getCurrentCargo();
-        
-        // Restore movement properties
-        this.playerShip.velocityX = oldVelocityX;
-        this.playerShip.velocityY = oldVelocityY;
-        this.playerShip.facingAngle = oldFacingAngle;
-        
-        // Update camera to follow new ship
-        this.cameras.main.startFollow(this.playerShip);
-        
-        // Update collisions with new player ship
-        this.physics.add.collider(this.playerShip, this.islands);
-        this.physics.add.collider(this.playerShip, this.ports);
-        this.physics.add.overlap(this.playerShip, this.enemyShips, this.handleShipCollision, null, this);
-        
-        // Update all ports to recognize the new player ship
-        this.ports.forEach(port => {
-            // Remove old overlap if it exists
-            if (port.contactOverlap) {
-                port.contactOverlap.destroy();
-            }
-            
-            // Create new overlap with the new player ship
-            port.contactOverlap = this.physics.add.overlap(
-                this.playerShip,
-                port.detectionZone,
-                (player, zone) => {
-                    if (!port.playerInContact) {
-                        console.log('Port: Player entered contact zone for', port.portName);
-                        port.playerInContact = true;
-                        port.showContactPopup();
-                    }
-                },
-                null,
-                port
-            );
-        });
-        
-        console.log(`Player ship changed to: ${newShipType.name} (size: ${oldSize} -> ${newShipType.size})`);
-        console.log(`Gold and cargo preserved. Spawned outside port at (${spawnX}, ${spawnY})`);
-    }
 
     addWorldBorder() {
         const borderWidth = 5;
@@ -312,21 +302,10 @@ export default class GameScene extends Phaser.Scene {
         // Player ship collisions with ports
         this.physics.add.collider(this.playerShip, this.ports);
         
-        // Enemy ship collisions with islands
-        this.enemyShips.forEach(ship => {
-            this.physics.add.collider(ship, this.islands);
-            this.physics.add.collider(ship, this.ports);
-        });
         
         // Ship-to-ship collisions with size-based physics
         this.physics.add.overlap(this.playerShip, this.enemyShips, this.handleShipCollision, null, this);
         
-        // Enemy ship to enemy ship collisions with size-based physics
-        for (let i = 0; i < this.enemyShips.length; i++) {
-            for (let j = i + 1; j < this.enemyShips.length; j++) {
-                this.physics.add.overlap(this.enemyShips[i], this.enemyShips[j], this.handleShipCollision, null, this);
-            }
-        }
     }
 
     handleShipCollision(ship1, ship2) {
@@ -353,183 +332,90 @@ export default class GameScene extends Phaser.Scene {
         largerShip.body.setImmovable(false);
     }
 
-    spawnEnemyShip(shipType) {
-        const minDistanceFromPlayer = (this.playerShip.size / 2) + (shipType.size / 2) + 100; // Add 100px buffer
-        let x, y, distanceFromPlayer, validPosition;
-        let attempts = 0;
-        const maxAttempts = 100;
-        
-        do {
-            validPosition = true;
-            
-            // Try to spawn in a random position around the player
-            const angle = Phaser.Math.Between(0, 360) * (Math.PI / 180);
-            const spawnDistance = Phaser.Math.Between(minDistanceFromPlayer, 2000);
-            
-            x = this.playerShip.x + Math.cos(angle) * spawnDistance;
-            y = this.playerShip.y + Math.sin(angle) * spawnDistance;
-            
-            // Calculate distance from player
-            const dx = x - this.playerShip.x;
-            const dy = y - this.playerShip.y;
-            distanceFromPlayer = Math.sqrt(dx * dx + dy * dy);
-            
-            // Check if too close to player
-            if (distanceFromPlayer < minDistanceFromPlayer) {
-                validPosition = false;
-            }
-            
-            // Check collision with islands
-            for (const island of this.islands) {
-                const islandDx = x - island.x;
-                const islandDy = y - island.y;
-                const islandDistance = Math.sqrt(islandDx * islandDx + islandDy * islandDy);
-                
-                // Calculate minimum distance from island (island size + ship size + buffer)
-                const islandRadius = Math.max(island.displayWidth, island.displayHeight) / 2;
-                const shipRadius = shipType.size / 2;
-                const minIslandDistance = islandRadius + shipRadius + 50; // 50px buffer
-                
-                if (islandDistance < minIslandDistance) {
-                    validPosition = false;
-                    break;
-                }
-            }
-            
-            // Check collision with ports
-            if (validPosition) {
-                for (const port of this.ports) {
-                    const portDx = x - port.x;
-                    const portDy = y - port.y;
-                    const portDistance = Math.sqrt(portDx * portDx + portDy * portDy);
-                    
-                    // Calculate minimum distance from port (port size + ship size + buffer)
-                    const portRadius = Math.max(port.displayWidth, port.displayHeight) / 2;
-                    const shipRadius = shipType.size / 2;
-                    const minPortDistance = portRadius + shipRadius + 100; // 100px buffer
-                    
-                    if (portDistance < minPortDistance) {
-                        validPosition = false;
-                        break;
-                    }
-                }
-            }
-            
-            // Check collision with existing enemy ships
-            if (validPosition) {
-                for (const existingShip of this.enemyShips) {
-                    const shipDx = x - existingShip.x;
-                    const shipDy = y - existingShip.y;
-                    const shipDistance = Math.sqrt(shipDx * shipDx + shipDy * shipDy);
-                    
-                    // Calculate minimum distance from existing ship (both ship sizes + buffer)
-                    const existingShipRadius = existingShip.size / 2;
-                    const newShipRadius = shipType.size / 2;
-                    const minShipDistance = existingShipRadius + newShipRadius + 100; // 100px buffer
-                    
-                    if (shipDistance < minShipDistance) {
-                        validPosition = false;
-                        break;
-                    }
-                }
-            }
-            
-            attempts++;
-        } while (!validPosition && attempts < maxAttempts);
-        
-        // Create the enemy ship at the valid position
-        const enemyShip = new Ship(this, x, y, shipType);
-        this.enemyShips.push(enemyShip);
-    }
 
-    setupInput() {
-        this.keys = {
-            w: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W),
-            s: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S),
-            a: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A),
-            d: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D),
-            i: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.I),
-            e: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E)
-        };
-        this.infoBoxVisible = true;
-        this.infoBoxToggleDelay =0;
-        this.infoBoxToggleDelayMax = 150; // milliseconds
-        this.cargoMenuVisible = false;
-    }
 
     update(time, delta) {
-    this.windSystem.update(delta);
+        this.windSystem.update(delta);
+        
+        // Update player and enemy systems
+        this.playerSystem.update(time, delta);
+        this.enemySystem.update(time, delta);
+        
+        // Update combat system
+        this.combatSystem.update(delta);
+        
+        // Update ammo UI
+        this.ammoUI.update();
+        
+        // Update stats UI
+        this.statsUI.update();
+        
         const windEffect = this.windSystem.getWindEffect(this.playerShip.facingAngle);
         const windBaseBoost = this.playerShip.speed * windEffect.factor * this.playerShip.shipType.windResistance; 
         const windBoost = Math.min(windBaseBoost, this.playerShip.speed * 0.5); // Cap the boost at 50 for display purposes
-        this.infoBoxToggleDelay -= delta;
-
-        if (this.keys.i.isDown && this.infoBoxToggleDelay <= 0) {
-            this.infoBoxVisible = !this.infoBoxVisible;
-            this.infoText.setVisible(this.infoBoxVisible);
-            this.infoBoxToggleDelay = this.infoBoxToggleDelayMax;
-        }
-        if (this.keys.i.isDown) {
-            this.infoBoxToggled = false;
-        }
-        
-        // Handle E key for cargo menu
-        if (Phaser.Input.Keyboard.JustDown(this.keys.e)) {
-            if (this.cargoMenuVisible) {
-                this.hideCargoMenu();
-            } else {
-                this.showCargoMenu();
-            }
-        }
-        
-        // Handle player input
-        if (this.keys.w.isDown) {
-            this.playerShip.moveForward();
-        }
-        if (this.keys.s.isDown) {
-            this.playerShip.moveBackward();
-        }
-        if (this.keys.a.isDown) {
-            this.playerShip.rotateLeft();
-        } else if (this.keys.d.isDown) {
-            this.playerShip.rotateRight();
-        } else {
-            this.playerShip.stopRotation();
-        }
-        
-        // If neither forward nor backward is pressed, stop
-        if (!this.keys.w.isDown && !this.keys.s.isDown) {
-            this.playerShip.applyDeceleration();
-        }
-        
-        // Update player ship
-        this.playerShip.update(time, delta);
-        
-        // Update enemy ships
-        this.enemyShips.forEach(ship => ship.update(time, delta));
         
         // Update ports
         this.ports.forEach(port => port.update());
         
-const arrowDistance = this.playerShip.size / 2 + 30;
+const arrowDistance = this.playerShip.size / 2 + 90;
 const arrowX = this.playerShip.x + Math.cos(this.playerShip.facingAngle) * arrowDistance;
 const arrowY = this.playerShip.y + Math.sin(this.playerShip.facingAngle) * arrowDistance;
 this.directionArrow.clear();
-this.directionArrow.fillStyle(0xFF0030, 1);
+
+// Draw main blue arrow (3x size)
+this.directionArrow.fillStyle(0x0066FF, 1);
 this.directionArrow.beginPath();
 this.directionArrow.moveTo(arrowX, arrowY);
 this.directionArrow.lineTo(
-    arrowX - 15 * Math.cos(this.playerShip.facingAngle - 0.4),
-    arrowY - 15 * Math.sin(this.playerShip.facingAngle - 0.4)
+    arrowX - 45 * Math.cos(this.playerShip.facingAngle - 0.4),
+    arrowY - 45 * Math.sin(this.playerShip.facingAngle - 0.4)
 );
 this.directionArrow.lineTo(
-    arrowX - 15 * Math.cos(this.playerShip.facingAngle + 0.4),
-    arrowY - 15 * Math.sin(this.playerShip.facingAngle + 0.4)
+    arrowX - 45 * Math.cos(this.playerShip.facingAngle + 0.4),
+    arrowY - 45 * Math.sin(this.playerShip.facingAngle + 0.4)
+);
+this.directionArrow.closePath();
+this.directionArrow.fillPath();
+
+// Draw two side arrows (perpetual) at 90 and -90 degrees (3x size)
+const greenArrowDistance = this.playerShip.size / 2 + 150;
+const greenArrow1X = this.playerShip.x + Math.cos(this.playerShip.facingAngle + Math.PI / 2) * greenArrowDistance;
+const greenArrow1Y = this.playerShip.y + Math.sin(this.playerShip.facingAngle + Math.PI / 2) * greenArrowDistance;
+const greenArrow2X = this.playerShip.x + Math.cos(this.playerShip.facingAngle - Math.PI / 2) * greenArrowDistance;
+const greenArrow2Y = this.playerShip.y + Math.sin(this.playerShip.facingAngle - Math.PI / 2) * greenArrowDistance;
+
+// Left arrow (red) - at 90 degrees (3x size)
+this.directionArrow.fillStyle(0xFF0000, 1);
+this.directionArrow.beginPath();
+this.directionArrow.moveTo(greenArrow1X, greenArrow1Y);
+this.directionArrow.lineTo(
+    greenArrow1X - 30 * Math.cos(this.playerShip.facingAngle + Math.PI / 2 - 0.4),
+    greenArrow1Y - 30 * Math.sin(this.playerShip.facingAngle + Math.PI / 2 - 0.4)
+);
+this.directionArrow.lineTo(
+    greenArrow1X - 30 * Math.cos(this.playerShip.facingAngle + Math.PI / 2 + 0.4),
+    greenArrow1Y - 30 * Math.sin(this.playerShip.facingAngle + Math.PI / 2 + 0.4)
+);
+this.directionArrow.closePath();
+this.directionArrow.fillPath();
+
+// Right arrow (lavender) - at -90 degrees (3x size)
+this.directionArrow.fillStyle(0xE6E6FA, 1);
+this.directionArrow.beginPath();
+this.directionArrow.moveTo(greenArrow2X, greenArrow2Y);
+this.directionArrow.lineTo(
+    greenArrow2X - 30 * Math.cos(this.playerShip.facingAngle - Math.PI / 2 - 0.4),
+    greenArrow2Y - 30 * Math.sin(this.playerShip.facingAngle - Math.PI / 2 - 0.4)
+);
+this.directionArrow.lineTo(
+    greenArrow2X - 30 * Math.cos(this.playerShip.facingAngle - Math.PI / 2 + 0.4),
+    greenArrow2Y - 30 * Math.sin(this.playerShip.facingAngle - Math.PI / 2 + 0.4)
 );
 this.directionArrow.closePath();
 this.directionArrow.fillPath();
 
 // Update info text
+        const selectedAmmo = this.combatSystem.getSelectedAmmo();
         this.infoText.setText([
             `Ship: ${this.playerShip.shipType.name}`,
             `Gold: ${this.playerShip.gold}`,
@@ -538,10 +424,14 @@ this.directionArrow.fillPath();
             `Turn Speed: ${this.playerShip.turnSpeed}`,
             `Rowing: ${this.playerShip.rowing}`,
             `Cargo: ${this.playerShip.cargo} / ${this.playerShip.cargoMax}`,
-            `Crew: ${this.playerShip.crew}/${this.playerShip.crewMax}`,
+            `Selected Ammo: ${selectedAmmo} (${this.playerShip.tradeGoods[selectedAmmo]})`,
             `Controls: W/S - For/Back`,
             `A/D - Rotate`,
-            `E - Cargo`,
+            `Q/E - Select Ammo`,
+            `Left Click - Fire Left`,
+            `Middle Click - Fire Right`,
+            `Space - Fire Both`,
+            `R - Cargo`,
             `I - Toggle Info`
         ]);
         const wind = this.windSystem.getWindEffect(this.playerShip.facingAngle);
@@ -564,82 +454,5 @@ this.directionArrow.fillPath();
             arrowSize / 2, arrowSize / 2
         ));
         this.windArrow.restore();
-    }
-    
-    showCargoMenu() {
-        if (this.cargoMenuVisible) return;
-        
-        this.cargoMenuVisible = true;
-        
-        const menuX = this.cameras.main.width / 2;
-        const menuY = this.cameras.main.height / 2;
-        
-        // Create cargo menu background
-        this.cargoBackground = this.add.rectangle(
-            menuX, menuY, 600, 500, 0x000000, 0.9
-        );
-        this.cargoBackground.setScrollFactor(0);
-        this.cargoBackground.setDepth(1000);
-        
-        // Create cargo menu title
-        this.cargoTitle = this.add.text(
-            menuX, menuY - 180, 'Cargo Hold', {
-                fontSize: '48px',
-                fill: '#fff',
-                backgroundColor: '#000000',
-                padding: { x: 10, y: 5 }
-            }
-        );
-        this.cargoTitle.setScrollFactor(0);
-        this.cargoTitle.setDepth(1001);
-        this.cargoTitle.setOrigin(0.5, 0.5);
-        
-        // Create cargo info text
-        const cargoInfo = [
-            `Gold: ${this.playerShip.gold}`,
-            `Cargo Space: ${this.playerShip.getCurrentCargo()} / ${this.playerShip.cargoMax}`,
-            '',
-            'Trade Goods:'
-        ];
-        
-        // Add only the trade goods that the player has (amount > 0)
-        Object.entries(this.playerShip.tradeGoods).forEach(([goodType, amount]) => {
-            if (amount > 0) {
-                // Format the good name to be more readable (capitalize first letter, handle special cases)
-                const formattedName = goodType.charAt(0).toUpperCase() + goodType.slice(1).toLowerCase();
-                cargoInfo.push(`${formattedName}: ${amount} units`);
-            }
-        });
-        
-        // Add empty line and close instruction if there are any goods, otherwise show empty message
-        if (cargoInfo.length > 4) {
-            cargoInfo.push('', 'Press E to close');
-        } else {
-            cargoInfo.push('(No trade goods in cargo)', '', 'Press E to close');
-        }
-        
-        this.cargoText = this.add.text(
-            menuX, menuY, cargoInfo.join('\n'), {
-                fontSize: '24px',
-                fill: '#fff',
-                backgroundColor: '#000000',
-                padding: { x: 15, y: 10 },
-                align: 'center'
-            }
-        );
-        this.cargoText.setScrollFactor(0);
-        this.cargoText.setDepth(1001);
-        this.cargoText.setOrigin(0.5, 0.5);
-    }
-    
-    hideCargoMenu() {
-        if (!this.cargoMenuVisible) return;
-        
-        this.cargoMenuVisible = false;
-        
-        // Destroy cargo menu elements
-        if (this.cargoBackground) this.cargoBackground.destroy();
-        if (this.cargoTitle) this.cargoTitle.destroy();
-        if (this.cargoText) this.cargoText.destroy();
     }
 }

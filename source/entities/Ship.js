@@ -19,6 +19,9 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
         this.hitboxOffsetX = shipType.hitboxOffsetX;
         this.hitboxOffsetY = shipType.hitboxOffsetY;
         this.needsOffset = shipType.needsOffset || 0;
+        
+        // Add color property for procedural texture fallback
+        this.color = shipType.color || 0x8B4513; // Default brown color for ships
 
         // Trade and inventory properties
         this.gold = 1000; // Starting gold
@@ -55,7 +58,17 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
             blunderbuss: 0,
             crossbow: 0,
             arrows: 0,
-            steel: 0
+            steel: 0,
+            // New regional specialty goods
+            tobacco: 0,
+            silver: 0,
+            gems: 0,
+            cotton: 0,
+            indigo: 0,
+            spices: 0,
+            dyes: 0,
+            timber: 0,
+            jade: 0
         };
 
         this.galleyAnimationFrame = 1; // Track animation frame for galleys
@@ -67,6 +80,16 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
         this.velocityY = 0;
         this.rotationSpeed = 0;
         this.facingAngle = 0; // Track rotation for movement, but not visual rotation
+        
+        // Combat properties
+        this.health = shipType.health || 100;
+        this.maxHealth = shipType.maxHealth || 100;
+        this.crewHealth = this.crew;
+        this.maxCrewHealth = this.crewMax;
+        this.sailIntegrity = shipType.sailIntegrity || 100;
+        this.maxSailIntegrity = shipType.maxSailIntegrity || 100;
+        this.isPlayer = false; // Will be set by PlayerSystem
+        this.destroyed = false; // Track if ship is destroyed
         
         // Create visual representation
         this.createVisuals();
@@ -90,27 +113,41 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
     createVisuals() {
         // Use image if defined in shipType, otherwise create procedural texture
         if (this.shipType.image) {
+            console.log(`🚢 Setting ship texture to: ${this.shipType.image}`);
             this.setTexture(this.shipType.image);
+            
+            // Check if texture actually loaded
+            if (!this.texture || !this.texture.key) {
+                console.error(`❌ Failed to load texture: ${this.shipType.image}`);
+                // Fallback to procedural texture
+                this.createProceduralTexture();
+            } else {
+                console.log(`✅ Successfully loaded texture: ${this.texture.key}`);
+            }
         } else {
-            // Create rectangle for ship body
-            const graphics = this.scene.make.graphics({ x: 0, y: 0, add: false });
-            graphics.fillStyle(this.color, 1);
-            graphics.fillRect(-this.size / 2, -this.size / 2, this.size, this.size);
-            
-            // Create ship front indicator (triangle)
-            graphics.fillStyle(0xFFD700, 1);
-            graphics.fillTriangleShape(new Phaser.Geom.Triangle(
-                -this.size / 2, -this.size,
-                this.size / 2, -this.size,
-                0, -this.size - 15
-            ));
-            
-            const texture = graphics.generateTexture('shipTexture_' + Math.random(), this.size, this.size);
-            graphics.destroy();
-            
-            this.setTexture('shipTexture_' + Math.random());
+            this.createProceduralTexture();
         }
         this.setDisplaySize(this.size, this.size);
+    }
+    
+    createProceduralTexture() {
+        // Create rectangle for ship body
+        const graphics = this.scene.make.graphics({ x: 0, y: 0, add: false });
+        graphics.fillStyle(this.color, 1);
+        graphics.fillRect(-this.size / 2, -this.size / 2, this.size, this.size);
+        
+        // Create ship front indicator (triangle)
+        graphics.fillStyle(0xFFD700, 1);
+        graphics.fillTriangleShape(new Phaser.Geom.Triangle(
+            -this.size / 2, -this.size,
+            this.size / 2, -this.size,
+            0, -this.size - 15
+        ));
+        
+        const texture = graphics.generateTexture('shipTexture_' + Math.random(), this.size, this.size);
+        graphics.destroy();
+        
+        this.setTexture('shipTexture_' + Math.random());
     }
     
     createHitboxCircle() {
@@ -121,14 +158,22 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
     }
     
     updateHitboxCircle() {
-        if (!this.hitboxCircle) return;
+        // Don't update if ship is destroyed or hitbox doesn't exist
+        if (this.destroyed || !this.hitboxCircle) {
+            return;
+        }
         
         this.hitboxCircle.clear();
         
         // Get the actual physics body dimensions directly
         const body = this.body;
-        const width = body.width;
-        const height = body.height;
+        if (!body) {
+            console.warn(`⚠️ Ship physics body not available for hitbox update`);
+            return;
+        }
+        
+        const width = body.width || this.size * 0.25; // Fallback to default
+        const height = body.height || this.size * 0.15; // Fallback to default
         
         // Draw rectangle (red for player, blue for enemies)
         const color = this.isPlayer ? 0xFF0000 : 0x0000FF;
@@ -161,10 +206,20 @@ updateSpriteDirection() {
                 this.galleyAnimationTimer = 0;
             }
         }
-        this.setTexture(`${this.shipType.name}_${direction}_${this.galleyAnimationFrame}`);
-        this.setDisplaySize(this.size, this.size);
+        const textureKey = `${this.shipType.name}_${direction}_${this.galleyAnimationFrame}`;
+        if (this.scene && this.scene.textures && this.scene.textures.exists(textureKey)) {
+            this.setTexture(textureKey);
+            this.setDisplaySize(this.size, this.size);
+        } else {
+            console.warn(`⚠️ Ship texture not found: ${textureKey}, keeping current texture`);
+        }
     } else {
-        this.setTexture(`${this.shipType.name}_${direction}`);
+        const textureKey = `${this.shipType.name}_${direction}`;
+        if (this.scene && this.scene.textures && this.scene.textures.exists(textureKey)) {
+            this.setTexture(textureKey);
+        } else {
+            console.warn(`⚠️ Ship texture not found: ${textureKey}, keeping current texture`);
+        }
     }
 }
     moveForward() {
@@ -217,8 +272,17 @@ updateSpriteDirection() {
     }
     
     update(time, delta) {
-        // Apply velocity
-        this.setVelocity(this.velocityX, this.velocityY);
+        // Don't update if ship is destroyed
+        if (this.destroyed) {
+            return;
+        }
+        
+        // Apply velocity (only if physics body exists)
+        if (this.body && this.body.setVelocity) {
+            this.setVelocity(this.velocityX, this.velocityY);
+        } else {
+            console.error(`❌ Ship physics body not available for setVelocity`);
+        }
         
         // Update facing angle for movement (don't apply to visual rotation)
         this.facingAngle += this.rotationSpeed * 0.01 * (delta / 1000);
@@ -284,5 +348,94 @@ updateSpriteDirection() {
         this.cargo = this.getCurrentCargo();
         
         return { success: true, message: `Sold ${amount} ${goodType} for ${totalRevenue} gold!` };
+    }
+
+    // Combat methods
+    takeDamage(damage, damageType = 'hull') {
+        switch (damageType) {
+            case 'hull':
+                this.health = Math.max(0, this.health - damage);
+                break;
+            case 'crew':
+                this.crewHealth = Math.max(0, this.crewHealth - damage);
+                this.crew = Math.max(0, this.crew - Math.floor(damage / 10));
+                break;
+            case 'sails':
+                this.sailIntegrity = Math.max(0, this.sailIntegrity - damage);
+                // Reduce speed when sails are damaged
+                const speedReduction = 1 - (this.sailIntegrity / this.maxSailIntegrity);
+                this.speed = this.shipType.speed * (1 - speedReduction * 0.5);
+                break;
+        }
+        
+        // Check if ship is destroyed
+        if (this.health <= 0) {
+            this.destroyShip();
+        }
+    }
+
+    destroyShip() {
+        // Mark as destroyed to prevent further updates
+        this.destroyed = true;
+        
+        // Create explosion effect or sinking animation
+        console.log(`${this.shipType.name} has been destroyed!`);
+        
+        // Clean up hitbox circle
+        if (this.hitboxCircle) {
+            this.hitboxCircle.destroy();
+            this.hitboxCircle = null;
+        }
+        
+        // Remove from physics system
+        if (this.body) {
+            this.body.destroy();
+        }
+        
+        // Finally destroy the sprite
+        this.destroy();
+    }
+
+    repairShip(repairAmount) {
+        this.health = Math.min(this.maxHealth, this.health + repairAmount);
+    }
+
+    repairCrew(repairAmount) {
+        this.crewHealth = Math.min(this.maxCrewHealth, this.crewHealth + repairAmount);
+        this.crew = Math.min(this.crewMax, this.crew + Math.floor(repairAmount / 10));
+    }
+
+    repairSails(repairAmount) {
+        this.sailIntegrity = Math.min(this.maxSailIntegrity, this.sailIntegrity + repairAmount);
+        // Restore speed when sails are repaired
+        const sailEfficiency = this.sailIntegrity / this.maxSailIntegrity;
+        this.speed = this.shipType.speed * (0.5 + sailEfficiency * 0.5);
+    }
+
+    getCombatStatus() {
+        return {
+            health: this.health,
+            maxHealth: this.maxHealth,
+            crewHealth: this.crewHealth,
+            maxCrewHealth: this.maxCrewHealth,
+            sailIntegrity: this.sailIntegrity,
+            maxSailIntegrity: this.maxSailIntegrity,
+            ammo: {
+                cannonballs: this.tradeGoods.cannonballs,
+                chainshot: this.tradeGoods.chainshot,
+                grapeshot: this.tradeGoods.grapeshot
+            }
+        };
+    }
+
+    canFireCannons() {
+        return this.tradeGoods.cannonballs > 0 || 
+               this.tradeGoods.chainshot > 0 || 
+               this.tradeGoods.grapeshot > 0;
+    }
+
+    getCannonSideCount(side) {
+        const cannonsPerSide = Math.floor(this.cannons / 2);
+        return cannonsPerSide;
     }
 }

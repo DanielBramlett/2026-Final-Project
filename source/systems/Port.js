@@ -2,10 +2,11 @@ import { Obstacle } from './Obstacle.js';
 import { SHIP_TYPES } from '../constants/shipTypes.js';
 
 export class Port extends Obstacle {
-    constructor(scene, x, y, width, height, textureKey, portName = 'Port') {
+    constructor(scene, x, y, width, height, textureKey, portName = 'Port', region = 'general') {
         super(scene, x, y, width, height, textureKey);
         
         this.portName = portName;
+        this.region = region;
         this.playerInContact = false;
         this.contactPopup = null;
         this.menuActive = false;
@@ -51,13 +52,59 @@ export class Port extends Obstacle {
             { id: 'crossbow', name: 'Crossbow', type: 'weapon', basePrice: 20, description: 'long-range weapon using arrows'},
             { id: 'arrows', name: 'Arrows', type: 'weapon', basePrice: 5, description: 'Ammunition for crossbows and bows'},
             { id: 'steel', name: 'Steel', type: 'metal', basePrice: 25, description: 'Made using iron'},
+            // Additional goods for regional specialties
+            { id: 'tobacco', name: 'Tobacco', type: 'crop', basePrice: 12, description: 'Valuable cash crop from the Americas' },
+            { id: 'silver', name: 'Silver', type: 'valuble metal', basePrice: 75, description: 'Precious metal for trade' },
+            { id: 'gems', name: 'Gems', type: 'valuble metal', basePrice: 150, description: 'Rare and valuable gemstones' },
+            { id: 'cotton', name: 'Cotton', type: 'crop', basePrice: 8, description: 'Soft fiber for textiles' },
+            { id: 'indigo', name: 'Indigo', type: 'crop', basePrice: 20, description: 'Valuable blue dye' },
+            { id: 'spices', name: 'Spices', type: 'spice', basePrice: 25, description: 'Assorted exotic spices' },
+            { id: 'dyes', name: 'Dyes', type: 'craft', basePrice: 15, description: 'Various color dyes for textiles' },
+            { id: 'timber', name: 'Timber', type: 'supplies', basePrice: 6, description: 'Quality wood for shipbuilding' },
+            { id: 'jade', name: 'Jade', type: 'valuble metal', basePrice: 120, description: 'Precious green stone from the Americas' }
         ];
         
-        // Initialize current prices with random variations (50% to 200% of base price)
-        this.currentGoods = this.baseGoods.map(good => ({
-            ...good,
-            price: Math.round(good.basePrice * (0.5 + Math.random() * 1.5)) // Random between 50% and 200%
-        }));
+        // Regional specialization for non-supply goods
+        this.regionalSpecialties = {
+            'caribbean': ['rum', 'suger', 'cocoa', 'tobacco'],
+            'bermuda': ['salt', 'fish', 'lanterns'],
+            'bahamas': ['rum', 'salt', 'fish'],
+            'greater_antilles': ['suger', 'rum', 'tobacco'],
+            'leeward_islands': ['spices', 'cotton', 'indigo'],
+            'windward_islands': ['spices', 'sugar', 'rum'],
+            'south_america': ['gold_bar', 'silver', 'gems', 'cocoa'],
+            'central_america': ['cocoa', 'spices', 'tobacco', 'dyes'],
+            'florida': ['fish', 'salt', 'timber'],
+            'yucatan': ['cocoa', 'spices', 'jade'],
+            'lesser_antilles': ['spices', 'rum', 'sugar']
+        };
+        
+        // Initialize current prices with regional variations
+        this.currentGoods = this.baseGoods.map(good => {
+            let buyPrice, sellPrice, sellPricePercent;
+            
+            if (good.type === 'supplies') {
+                // Supplies have fixed prices everywhere
+                buyPrice = good.basePrice;
+                sellPricePercent = 0.8; // Fixed 80% of buy price
+                sellPrice = Math.round(buyPrice * sellPricePercent);
+            } else {
+                // Non-supply goods have regional pricing
+                const isRegionalSpecialty = this.regionalSpecialties[this.region]?.includes(good.id);
+                const priceMultiplier = isRegionalSpecialty ? 0.7 : 1.3; // Cheaper in specialty regions, more expensive elsewhere
+                
+                buyPrice = Math.round(good.basePrice * priceMultiplier * (0.8 + Math.random() * 0.4)); // Some variation
+                sellPricePercent = 0.6 + Math.random() * 0.2; // Random between 0.6 and 0.8
+                sellPrice = Math.round(buyPrice * sellPricePercent);
+            }
+            
+            return {
+                ...good,
+                price: buyPrice,
+                sellPrice: sellPrice,
+                sellPricePercent: Math.round(sellPricePercent * 100)
+            };
+        });
         
         // Price update timer (every 60 seconds)
         this.priceUpdateTimer = scene.time.addEvent({
@@ -66,24 +113,13 @@ export class Port extends Obstacle {
             callback: () => this.updatePrices()
         });
         
-        // Create a larger detection zone for easier activation
-        const detectionRadius = Math.max(width, height) * 3; // 2.5x the larger dimension
-        this.detectionZone = scene.add.circle(x, y, detectionRadius, 0x00ff00, 0);
-        scene.physics.add.existing(this.detectionZone, true);
-        
-        // Create visual marker for detection area
-        this.detectionMarker = scene.add.circle(x, y, detectionRadius, 0x00ffff, 0.2);
-        this.detectionMarker.setStrokeStyle(2, 0x00ffff, 0.5);
-        this.detectionMarker.setScrollFactor(1);
-        this.detectionMarker.setDepth(50); // Below UI but above water
-        
-        // Set up collision detection with player ship using the detection zone
+        // Set up collision detection with player ship using direct contact
         this.contactOverlap = scene.physics.add.overlap(
             scene.playerShip,
-            this.detectionZone,
-            (player, zone) => {
+            this,
+            (player, port) => {
                 if (!this.playerInContact) {
-                    console.log('Port: Player entered contact zone for', this.portName);
+                    console.log('Port: Player made direct contact with', this.portName);
                     this.playerInContact = true;
                     this.showContactPopup();
                 }
@@ -92,7 +128,7 @@ export class Port extends Obstacle {
             this
         );
         
-        // Set up exit detection using a different approach
+        // Set up exit detection using distance check
         this.exitCheckTimer = scene.time.addEvent({
             delay: 100,
             loop: true,
@@ -104,11 +140,18 @@ export class Port extends Obstacle {
                         this.x, 
                         this.y
                     );
-                    if (distance > this.detectionZone.radius) {
+                    // Player is out of contact if they're beyond the port bounds plus buffer
+                    const maxDimension = Math.max(this.width, this.height);
+                    const exitDistance = maxDimension + 100; // Port size + 100px buffer
+                    
+                    if (distance > exitDistance) {
                         console.log('Port: Player exited contact zone for', this.portName);
                         this.playerInContact = false;
                         this.hideContactPopup();
-                        if (this.menuActive) {
+                        // Don't close menu if player is actively using it
+                        // Only close menu if player moves far away (double the normal distance)
+                        const farDistance = maxDimension + 300; // Port size + 300px buffer
+                        if (distance > farDistance && this.menuActive) {
                             this.hideMenu();
                         }
                     }
@@ -129,32 +172,52 @@ export class Port extends Obstacle {
             const baseGood = this.baseGoods.find(bg => bg.id === good.id);
             if (!baseGood) return good;
             
-            // Calculate price change: -50% to +100% of current price
-            // This ensures prices stay between 50% and 200% of base price
-            const changePercent = -0.5 + Math.random(); // Random between -0.5 and +0.5
-            let newPrice = Math.round(good.price * (1 + changePercent));
+            let newBuyPrice, newSellPrice, newSellPricePercent;
             
-            // Ensure price stays within bounds (50% to 200% of base price)
-            const minPrice = Math.round(baseGood.basePrice * 0.75);
-            const maxPrice = Math.round(baseGood.basePrice * 2.0);
-            newPrice = Math.max(minPrice, Math.min(maxPrice, newPrice));
+            if (good.type === 'supplies') {
+                // Supplies maintain fixed prices
+                newBuyPrice = baseGood.basePrice;
+                newSellPricePercent = 0.8; // Fixed 80% of buy price
+                newSellPrice = Math.round(newBuyPrice * newSellPricePercent);
+            } else {
+                // Non-supply goods have regional pricing with small variations
+                const isRegionalSpecialty = this.regionalSpecialties[this.region]?.includes(good.id);
+                const priceMultiplier = isRegionalSpecialty ? 0.7 : 1.3;
+                
+                // Calculate price change: -10% to +10% of current regional price
+                const changePercent = -0.1 + Math.random() * 0.2;
+                newBuyPrice = Math.round(good.price * (1 + changePercent));
+                
+                // Ensure price stays within regional bounds
+                const minPrice = Math.round(baseGood.basePrice * priceMultiplier * 0.8);
+                const maxPrice = Math.round(baseGood.basePrice * priceMultiplier * 1.2);
+                newBuyPrice = Math.max(minPrice, Math.min(maxPrice, newBuyPrice));
+                
+                newSellPricePercent = 0.6 + Math.random() * 0.2;
+                newSellPrice = Math.round(newBuyPrice * newSellPricePercent);
+            }
             
             return {
                 ...good,
-                price: newPrice
+                price: newBuyPrice,
+                sellPrice: newSellPrice,
+                sellPricePercent: Math.round(newSellPricePercent * 100)
             };
         });
         
         // Update the trade menu if it's currently open
-        if (this.tradeBackground && this.availableGoods) {
-            this.availableGoods = this.currentGoods;
-            this.updateGoodsList();
-            this.statusText.setText(
-                `Gold: ${this.scene.playerShip.gold} | Cargo: ${this.scene.playerShip.getCurrentCargo()}/${this.scene.playerShip.cargoMax}`
-            );
+        if (this.tradeBackground && this.availableGoods && this.statusText && this.goodsContainer) {
+            // Additional check to ensure text object is still valid
+            if (this.statusText.scene && this.statusText.visible !== false) {
+                this.availableGoods = this.currentGoods;
+                this.updateGoodsList();
+                this.statusText.setText(
+                    `Gold: ${this.scene.playerShip.gold} | Cargo: ${this.scene.playerShip.getCurrentCargo()}/${this.scene.playerShip.cargoMax}`
+                );
+            }
         }
         
-        console.log(`[${this.portName}] Prices updated!`);
+        console.log(`[${this.portName}] Prices updated! Region: ${this.region}`);
     }
     
     showContactPopup() {
@@ -723,6 +786,8 @@ export class Port extends Obstacle {
         
         this.selectedGoodIndex = 0;
         this.purchaseAmount = 1;
+        this.numberInputString = '';
+        this.isTypingAmount = false;
         
         // Create scrollable goods list
         this.goodsScrollOffset = 0;
@@ -753,7 +818,7 @@ export class Port extends Obstacle {
         // Add instructions
         const instructionText = this.scene.add.text(
             menuX, menuY + 350, 
-            'UP/DOWN: Select good | LEFT/RIGHT: Adjust amount\nENTER: Purchase | ESC: Back', {
+            'UP/DOWN: Select good | LEFT/RIGHT: Adjust amount | TYPE NUMBERS: Direct input\nENTER: Purchase | ESC: Back', {
             fontSize: '22px',
             fill: '#ccc',
             backgroundColor: '#000000',
@@ -789,10 +854,25 @@ export class Port extends Obstacle {
             enter: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER),
             escape: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
         };
+        
+        // Set up number keys for direct input
+        this.numberKeys = {
+            zero: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ZERO),
+            one: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE),
+            two: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO),
+            three: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE),
+            four: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FOUR),
+            five: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FIVE),
+            six: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SIX),
+            seven: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SEVEN),
+            eight: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.EIGHT),
+            nine: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.NINE),
+            backspace: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.BACKSPACE)
+        };
     }
     
     updateGoodsList() {
-        if (!this.availableGoods || this.availableGoods.length === 0) {
+        if (!this.availableGoods || this.availableGoods.length === 0 || !this.goodsContainer) {
             return;
         }
         
@@ -849,10 +929,11 @@ export class Port extends Obstacle {
             
             // Purchase amount (only for selected item)
             if (isSelected) {
+                const displayAmount = this.isTypingAmount ? (this.numberInputString || '0') : this.purchaseAmount;
                 const amountText = this.scene.add.text(0, yOffset + 75, 
-                    `Amount: ${this.purchaseAmount} | Total: ${this.purchaseAmount * good.price} gold`, {
+                    `Amount: ${displayAmount} | Total: ${this.purchaseAmount * good.price} gold`, {
                     fontSize: '22px',
-                    fill: '#00ff00',
+                    fill: this.isTypingAmount ? '#ff9900' : '#00ff00',
                     backgroundColor: 'transparent',
                     padding: { x: 5, y: 2 }
                 });
@@ -976,6 +1057,8 @@ export class Port extends Obstacle {
         
         this.selectedSellGoodIndex = 0;
         this.sellAmount = 1;
+        this.sellNumberInputString = '';
+        this.isTypingSellAmount = false;
         
         // Create scrollable goods list
         this.sellGoodsScrollOffset = 0;
@@ -1006,7 +1089,7 @@ export class Port extends Obstacle {
         // Add instructions
         const sellInstructionText = this.scene.add.text(
             menuX, menuY + 305, 
-            'UP/DOWN: Select good | LEFT/RIGHT: Adjust amount | ENTER: Sell | ESC: Back', {
+            'UP/DOWN: Select good | LEFT/RIGHT: Adjust amount | TYPE NUMBERS: Direct input\nENTER: Sell | ESC: Back', {
             fontSize: '24px',
             fill: '#ccc',
             backgroundColor: '#000000',
@@ -1041,6 +1124,21 @@ export class Port extends Obstacle {
             enter: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER),
             escape: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
         };
+        
+        // Set up number keys for direct input
+        this.sellNumberKeys = {
+            zero: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ZERO),
+            one: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE),
+            two: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO),
+            three: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE),
+            four: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FOUR),
+            five: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FIVE),
+            six: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SIX),
+            seven: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SEVEN),
+            eight: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.EIGHT),
+            nine: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.NINE),
+            backspace: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.BACKSPACE)
+        };
     }
     
     updateSellGoodsList() {
@@ -1063,10 +1161,9 @@ export class Port extends Obstacle {
             const isSelected = (i === this.selectedSellGoodIndex);
             const goodColor = isSelected ? '#ffff00' : '#fff';
             
-            // Calculate sell price (60-80% of buy price)
-            const sellPricePercent = 0.6 + Math.random() * 0.2; // Random between 0.6 and 0.8
-            const sellPrice = Math.round(good.price * sellPricePercent);
-            const sellPercentDisplay = Math.round(sellPricePercent * 100);
+            // Use stored sell price instead of calculating randomly
+            const sellPrice = good.sellPrice;
+            const sellPercentDisplay = good.sellPricePercent;
             
             // Good name and sell price
             const nameText = this.scene.add.text(0, yOffset, 
@@ -1100,10 +1197,11 @@ export class Port extends Obstacle {
             
             // Sell amount (only for selected item)
             if (isSelected) {
+                const displayAmount = this.isTypingSellAmount ? (this.sellNumberInputString || '0') : this.sellAmount;
                 const amountText = this.scene.add.text(0, yOffset + 75, 
-                    `Amount: ${this.sellAmount} | Total: ${this.sellAmount * sellPrice} gold`, {
+                    `Amount: ${displayAmount} | Total: ${this.sellAmount * sellPrice} gold`, {
                     fontSize: '22px',
-                    fill: '#00ff00',
+                    fill: this.isTypingSellAmount ? '#ff9900' : '#00ff00',
                     backgroundColor: 'transparent',
                     padding: { x: 5, y: 2 }
                 });
@@ -1119,9 +1217,8 @@ export class Port extends Obstacle {
         if (this.selectedSellGoodIndex >= 0 && this.selectedSellGoodIndex < this.playerGoods.length) {
             const good = this.playerGoods[this.selectedSellGoodIndex];
             
-            // Calculate sell price (60-80% of buy price)
-            const sellPricePercent = 0.6 + Math.random() * 0.2;
-            const sellPrice = Math.round(good.price * sellPricePercent);
+            // Use stored sell price instead of calculating randomly
+            const sellPrice = good.sellPrice;
             
             const result = this.scene.playerShip.sellTradeGood(good.id, this.sellAmount, sellPrice);
             
@@ -1185,6 +1282,10 @@ export class Port extends Obstacle {
         if (this.sellKeys) {
             Object.values(this.sellKeys).forEach(key => key.destroy());
             this.sellKeys = null;
+        }
+        if (this.sellNumberKeys) {
+            Object.values(this.sellNumberKeys).forEach(key => key.destroy());
+            this.sellNumberKeys = null;
         }
     }
     
@@ -1490,6 +1591,8 @@ export class Port extends Obstacle {
                 
                 // Reset purchase amount when changing selection
                 this.purchaseAmount = 1;
+                this.numberInputString = '';
+                this.isTypingAmount = false;
                 this.updateGoodsList();
             }
             
@@ -1506,12 +1609,16 @@ export class Port extends Obstacle {
                 
                 // Reset purchase amount when changing selection
                 this.purchaseAmount = 1;
+                this.numberInputString = '';
+                this.isTypingAmount = false;
                 this.updateGoodsList();
             }
             
             if (Phaser.Input.Keyboard.JustDown(this.tradeKeys.left)) {
                 // Decrease purchase amount
                 this.purchaseAmount = Math.max(1, this.purchaseAmount - 1);
+                this.numberInputString = '';
+                this.isTypingAmount = false;
                 this.updateGoodsList();
             }
             
@@ -1519,10 +1626,68 @@ export class Port extends Obstacle {
                 // Increase purchase amount (max based on gold and cargo)
                 const maxAmount = this.calculateMaxPurchaseAmount();
                 this.purchaseAmount = Math.min(maxAmount, this.purchaseAmount + 1);
+                this.numberInputString = '';
+                this.isTypingAmount = false;
                 this.updateGoodsList();
             }
             
+            // Handle number key input
+            if (this.numberKeys) {
+                // Check if any number key was pressed
+                const numberKeys = [
+                    { key: this.numberKeys.zero, digit: '0' },
+                    { key: this.numberKeys.one, digit: '1' },
+                    { key: this.numberKeys.two, digit: '2' },
+                    { key: this.numberKeys.three, digit: '3' },
+                    { key: this.numberKeys.four, digit: '4' },
+                    { key: this.numberKeys.five, digit: '5' },
+                    { key: this.numberKeys.six, digit: '6' },
+                    { key: this.numberKeys.seven, digit: '7' },
+                    { key: this.numberKeys.eight, digit: '8' },
+                    { key: this.numberKeys.nine, digit: '9' }
+                ];
+                
+                for (const { key, digit } of numberKeys) {
+                    if (Phaser.Input.Keyboard.JustDown(key)) {
+                        // Start typing or append digit
+                        if (!this.isTypingAmount) {
+                            this.isTypingAmount = true;
+                            this.numberInputString = digit;
+                        } else {
+                            // Limit input to reasonable length (max 5 digits)
+                            if (this.numberInputString.length < 5) {
+                                this.numberInputString += digit;
+                            }
+                        }
+                        this.updateGoodsList();
+                        break;
+                    }
+                }
+                
+                // Handle backspace
+                if (Phaser.Input.Keyboard.JustDown(this.numberKeys.backspace)) {
+                    if (this.isTypingAmount && this.numberInputString.length > 0) {
+                        this.numberInputString = this.numberInputString.slice(0, -1);
+                        if (this.numberInputString === '') {
+                            this.isTypingAmount = false;
+                        }
+                        this.updateGoodsList();
+                    }
+                }
+            }
+            
             if (Phaser.Input.Keyboard.JustDown(this.tradeKeys.enter)) {
+                // Apply typed amount if in typing mode
+                if (this.isTypingAmount && this.numberInputString !== '') {
+                    const typedAmount = parseInt(this.numberInputString, 10);
+                    if (!isNaN(typedAmount) && typedAmount > 0) {
+                        const maxAmount = this.calculateMaxPurchaseAmount();
+                        this.purchaseAmount = Math.min(maxAmount, typedAmount);
+                    }
+                    this.numberInputString = '';
+                    this.isTypingAmount = false;
+                    this.updateGoodsList();
+                }
                 // Purchase the selected good
                 this.purchaseTradeGood();
             }
@@ -1538,6 +1703,10 @@ export class Port extends Obstacle {
                 if (this.tradeKeys) {
                     Object.values(this.tradeKeys).forEach(key => key.destroy());
                     this.tradeKeys = null;
+                }
+                if (this.numberKeys) {
+                    Object.values(this.numberKeys).forEach(key => key.destroy());
+                    this.numberKeys = null;
                 }
                 this.showMenu(); // Return to main menu
             }
@@ -1558,6 +1727,8 @@ export class Port extends Obstacle {
                 
                 // Reset sell amount when changing selection
                 this.sellAmount = 1;
+                this.sellNumberInputString = '';
+                this.isTypingSellAmount = false;
                 this.updateSellGoodsList();
             }
             
@@ -1574,12 +1745,16 @@ export class Port extends Obstacle {
                 
                 // Reset sell amount when changing selection
                 this.sellAmount = 1;
+                this.sellNumberInputString = '';
+                this.isTypingSellAmount = false;
                 this.updateSellGoodsList();
             }
             
             if (Phaser.Input.Keyboard.JustDown(this.sellKeys.left)) {
                 // Decrease sell amount
                 this.sellAmount = Math.max(1, this.sellAmount - 1);
+                this.sellNumberInputString = '';
+                this.isTypingSellAmount = false;
                 this.updateSellGoodsList();
             }
             
@@ -1590,10 +1765,71 @@ export class Port extends Obstacle {
                     const maxAmount = this.scene.playerShip.tradeGoods[good.id] || 0;
                     this.sellAmount = Math.min(maxAmount, this.sellAmount + 1);
                 }
+                this.sellNumberInputString = '';
+                this.isTypingSellAmount = false;
                 this.updateSellGoodsList();
             }
             
+            // Handle number key input
+            if (this.sellNumberKeys) {
+                // Check if any number key was pressed
+                const numberKeys = [
+                    { key: this.sellNumberKeys.zero, digit: '0' },
+                    { key: this.sellNumberKeys.one, digit: '1' },
+                    { key: this.sellNumberKeys.two, digit: '2' },
+                    { key: this.sellNumberKeys.three, digit: '3' },
+                    { key: this.sellNumberKeys.four, digit: '4' },
+                    { key: this.sellNumberKeys.five, digit: '5' },
+                    { key: this.sellNumberKeys.six, digit: '6' },
+                    { key: this.sellNumberKeys.seven, digit: '7' },
+                    { key: this.sellNumberKeys.eight, digit: '8' },
+                    { key: this.sellNumberKeys.nine, digit: '9' }
+                ];
+                
+                for (const { key, digit } of numberKeys) {
+                    if (Phaser.Input.Keyboard.JustDown(key)) {
+                        // Start typing or append digit
+                        if (!this.isTypingSellAmount) {
+                            this.isTypingSellAmount = true;
+                            this.sellNumberInputString = digit;
+                        } else {
+                            // Limit input to reasonable length (max 5 digits)
+                            if (this.sellNumberInputString.length < 5) {
+                                this.sellNumberInputString += digit;
+                            }
+                        }
+                        this.updateSellGoodsList();
+                        break;
+                    }
+                }
+                
+                // Handle backspace
+                if (Phaser.Input.Keyboard.JustDown(this.sellNumberKeys.backspace)) {
+                    if (this.isTypingSellAmount && this.sellNumberInputString.length > 0) {
+                        this.sellNumberInputString = this.sellNumberInputString.slice(0, -1);
+                        if (this.sellNumberInputString === '') {
+                            this.isTypingSellAmount = false;
+                        }
+                        this.updateSellGoodsList();
+                    }
+                }
+            }
+            
             if (Phaser.Input.Keyboard.JustDown(this.sellKeys.enter)) {
+                // Apply typed amount if in typing mode
+                if (this.isTypingSellAmount && this.sellNumberInputString !== '') {
+                    const typedAmount = parseInt(this.sellNumberInputString, 10);
+                    if (!isNaN(typedAmount) && typedAmount > 0) {
+                        if (this.selectedSellGoodIndex >= 0 && this.selectedSellGoodIndex < this.playerGoods.length) {
+                            const good = this.playerGoods[this.selectedSellGoodIndex];
+                            const maxAmount = this.scene.playerShip.tradeGoods[good.id] || 0;
+                            this.sellAmount = Math.min(maxAmount, typedAmount);
+                        }
+                    }
+                    this.sellNumberInputString = '';
+                    this.isTypingSellAmount = false;
+                    this.updateSellGoodsList();
+                }
                 // Sell the selected good
                 this.sellTradeGood();
             }
