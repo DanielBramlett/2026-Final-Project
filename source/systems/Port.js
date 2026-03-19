@@ -1454,7 +1454,7 @@ export class Port extends Obstacle {
             
             // The scene's changePlayerShip method now handles preserving gold and cargo
             // and spawning the player outside the port
-            this.scene.changePlayerShip(shipType);
+            this.scene.playerSystem.changePlayerShip(shipType);
             
             // Clean up all inventory menu elements
             if (this.inventoryBackground) this.inventoryBackground.destroy();

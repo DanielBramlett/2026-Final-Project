@@ -189,6 +189,13 @@ export default class PlayerSystem {
         // Update camera to follow new ship
         this.scene.cameras.main.startFollow(this.playerShip);
         
+        // Update GameScene's playerShip reference
+        this.scene.playerShip = this.playerShip;
+        
+        // Update UI systems to reference the new player ship
+        this.scene.ammoUI.playerShip = this.playerShip;
+        this.scene.statsUI.playerShip = this.playerShip;
+        
         // Update collisions with new player ship
         this.scene.physics.add.collider(this.playerShip, this.scene.islands);
         this.scene.physics.add.collider(this.playerShip, this.scene.ports);
