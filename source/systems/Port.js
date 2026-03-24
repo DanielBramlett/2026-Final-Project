@@ -25,6 +25,7 @@ export class Port extends Obstacle {
             { id: 'chainshot', name: 'Chainshot', type: 'supplies', basePrice: 10, description: 'Ammunition for your cannons used on sails and crew' },
             { id: 'grapeshot', name: 'Grapeshot', type: 'supplies', basePrice: 10, description: 'Ammunition for your cannons used on crew' },
             { id: 'wood', name: 'Wood', type: 'supplies', basePrice: 5, description: 'Used to build and repair ships.'},
+            { id: 'timber', name: 'Timber', type: 'supplies', basePrice: 6, description: 'Quality wood for shipbuilding' },
             { id: 'rum', name: 'Rum', type: 'drink', basePrice: 20, description: 'Morale booster made from sugercane' },
             { id: 'suger', name: 'Suger', type: 'seasoning', basePrice: 15, description: 'Often used to sweet food or make rum.' },
             { id: 'iron', name: 'Iron', type: 'metal', basePrice: 30, description: 'Used to make cannons and ammo.' },
@@ -60,7 +61,6 @@ export class Port extends Obstacle {
             { id: 'indigo', name: 'Indigo', type: 'crop', basePrice: 20, description: 'Valuable blue dye' },
             { id: 'spices', name: 'Spices', type: 'spice', basePrice: 25, description: 'Assorted exotic spices' },
             { id: 'dyes', name: 'Dyes', type: 'craft', basePrice: 15, description: 'Various color dyes for textiles' },
-            { id: 'timber', name: 'Timber', type: 'supplies', basePrice: 6, description: 'Quality wood for shipbuilding' },
             { id: 'jade', name: 'Jade', type: 'valuble metal', basePrice: 120, description: 'Precious green stone from the Americas' }
         ];
         
@@ -71,7 +71,7 @@ export class Port extends Obstacle {
             'bahamas': ['rum', 'salt', 'fish'],
             'greater_antilles': ['suger', 'rum', 'tobacco'],
             'leeward_islands': ['spices', 'cotton', 'indigo'],
-            'windward_islands': ['spices', 'sugar', 'rum'],
+            'windward_islands': ['spices', 'sugar', 'rum', 'cotton'],
             'south_america': ['gold_bar', 'silver', 'gems', 'cocoa'],
             'central_america': ['cocoa', 'spices', 'tobacco', 'dyes'],
             'florida': ['fish', 'salt', 'timber'],

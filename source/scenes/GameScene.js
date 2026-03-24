@@ -87,6 +87,14 @@ export default class GameScene extends Phaser.Scene {
         this.load.image('Cannonball', 'assets/Cannonball.png');
         this.load.image('Chainshot', 'assets/Chainshot.png');
         this.load.image('Grapeshot', 'assets/Grapeshot.png');
+        this.load.image('HMS_Victory_East', 'assets/HMS_Victory_East.png');
+        this.load.image('HMS_Victory_West', 'assets/HMS_Victory_West.png');
+        this.load.image('Santísima_Trinidad_East', 'assets/Santísima_Trinidad_East.png');
+        this.load.image('Santísima_Trinidad_West', 'assets/Santísima_Trinidad_West.png');
+        this.load.image('Orient_East', 'assets/Orient_East.png');
+        this.load.image('Orient_West', 'assets/Orient_West.png');
+        // this.load.image('Urca_da_Lima_East', 'assets/Urca_da_Lima_East.png');
+        // this.load.image('Urca_da_Lima_West', 'assets/Urca_da_Lima_West.png');
     }
 
     create() {
@@ -108,7 +116,7 @@ export default class GameScene extends Phaser.Scene {
         this.playerShip = this.playerSystem.createPlayerShip(
             8000,
             5000,
-            SHIP_TYPES.SLOOP,
+            SHIP_TYPES.ORIENT,
         );
 
         this.islands = [];

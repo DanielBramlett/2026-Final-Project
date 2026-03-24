@@ -1034,7 +1034,7 @@ export const SHIP_TYPES = {
 
         image: 'First_Rate_East',
 
-        hitboxScaleX: 0.4,
+        hitboxScaleX: 0.38,
 
         hitboxScaleY: 0.3,
 
@@ -1080,9 +1080,11 @@ export const SHIP_TYPES = {
 
         isGalley: 0,
 
-        hitboxScaleX: 0.25,
+        image: 'HMS_Victory_East',
 
-        hitboxScaleY: 0.15,
+        hitboxScaleX: 0.38,
+
+        hitboxScaleY: 0.28,
 
         needsOffset: 0
 
@@ -1122,9 +1124,11 @@ export const SHIP_TYPES = {
 
         isGalley: 0,
 
-        hitboxScaleX: 0.25,
+        image: 'Orient_East',
 
-        hitboxScaleY: 0.15,
+        hitboxScaleX: 0.385,
+
+        hitboxScaleY: 0.285,
 
         needsOffset: 0
 
@@ -1132,7 +1136,7 @@ export const SHIP_TYPES = {
 
     SANTTÌSIMA_TRINIDAD: {
 
-        name: 'Santísima Trinidad',
+        name: 'Santísima_Trinidad',
 
         size: 975,
 
@@ -1164,9 +1168,11 @@ export const SHIP_TYPES = {
 
         isGalley: 0,
 
-        hitboxScaleX: 0.25,
+        image: 'Santísima_Trinidad_East',
 
-        hitboxScaleY: 0.15,
+        hitboxScaleX: 0.375,
+
+        hitboxScaleY: 0.275,
 
         needsOffset: 0
 
