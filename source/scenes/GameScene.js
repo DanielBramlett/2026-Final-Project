@@ -95,10 +95,40 @@ export default class GameScene extends Phaser.Scene {
         this.load.image('Orient_West', 'assets/Orient_West.png');
         // this.load.image('Urca_da_Lima_East', 'assets/Urca_da_Lima_East.png');
         // this.load.image('Urca_da_Lima_West', 'assets/Urca_da_Lima_West.png');
+        this.load.audio('cannon_shot_1', 'assets/Cannon_Shot_1.mp3');
+        this.load.audio('cannon_shot_2', 'assets/Cannon_Shot_2.mp3');
+        this.load.audio('rowing', 'assets/Rowing.mp3');
+        this.load.audio('sails', 'assets/Sails.mp3');
+        this.load.audio('wood_breaking', 'assets/Wood_Breaking.mp3');
+        this.load.audio('anchor', 'assets/Anchor.mp3');
+        this.load.audio('Ship_Creaking', 'assets/Ship_Creaking.mp3')
+        //Songs
+        this.load.audio('Raise_the_Sails', 'assets/sergepavkinmusic-raise-the-sails-152124.mp3');
+        this.load.audio('Pirate_Adventure', 'assets/ebunny-pirate-adventure-361663.mp3');
+        this.load.audio('Epic_Pirate_Adventure', 'assets/arthurhale-epic-pirate-adventure-song-x27seawardx27-359540.mp3')
     }
 
     create() {
         this.cameras.main.setBackgroundColor('#02468b');
+        
+        // Initialize sound system
+        this.shipCreakingTimer = 0;
+        this.shipCreakingDelay = 3000; // 3 seconds base delay
+        this.lastRowingFrame = null;
+        this.rowingSoundTimer = 0;
+        this.rowingSoundDelay = 750; // 750ms delay between rowing sounds
+        
+        // Initialize background music system
+        this.songs = ['Raise_the_Sails', 'Pirate_Adventure', 'Epic_Pirate_Adventure'];
+        this.songDurations = {
+            'Raise_the_Sails': 103, // 1:43 = 103 seconds
+            'Pirate_Adventure': 194, // 3:14 = 194 seconds  
+            'Epic_Pirate_Adventure': 137 // 2:17 = 137 seconds
+        };
+        this.currentSongIndex = 0;
+        this.songTimer = 0;
+        this.songDelay = 60000; // 1 minute between songs
+        this.currentBackgroundMusic = null;
         
         // Enable physics with arcade mode
         this.physics.world.setBounds(0, 0, 20000, 10000);
@@ -116,7 +146,7 @@ export default class GameScene extends Phaser.Scene {
         this.playerShip = this.playerSystem.createPlayerShip(
             8000,
             5000,
-            SHIP_TYPES.ORIENT,
+            SHIP_TYPES.SLOOP,
         );
 
         this.islands = [];
@@ -358,6 +388,12 @@ export default class GameScene extends Phaser.Scene {
         // Update stats UI
         this.statsUI.update();
         
+        // Handle ambient sounds
+        this.updateAmbientSounds(delta);
+        
+        // Handle background music
+        this.updateBackgroundMusic(delta);
+        
         const windEffect = this.windSystem.getWindEffect(this.playerShip.facingAngle);
         const windBaseBoost = this.playerShip.speed * windEffect.factor * this.playerShip.shipType.windResistance; 
         const windBoost = Math.min(windBaseBoost, this.playerShip.speed * 0.5); // Cap the boost at 50 for display purposes
@@ -462,5 +498,64 @@ this.directionArrow.fillPath();
             arrowSize / 2, arrowSize / 2
         ));
         this.windArrow.restore();
+    }
+
+    updateAmbientSounds(delta) {
+        // Handle ship creaking sounds
+        this.shipCreakingTimer -= delta;
+        if (this.shipCreakingTimer <= 0) {
+            this.sound.play('Ship_Creaking');
+            // Random delay between 2-5 seconds
+            this.shipCreakingDelay = 2000 + Math.random() * 3000;
+            this.shipCreakingTimer = this.shipCreakingDelay;
+        }
+
+        // Handle rowing sounds when galley animation changes
+        if (this.playerShip && this.playerShip.shipType.isGalley === 1) {
+            this.rowingSoundTimer -= delta;
+            
+            const currentTexture = this.playerShip.texture.key;
+            if (currentTexture !== this.lastRowingFrame && this.rowingSoundTimer <= 0) {
+                this.sound.play('rowing');
+                this.lastRowingFrame = currentTexture;
+                this.rowingSoundTimer = this.rowingSoundDelay; // Reset cooldown
+            }
+        }
+    }
+
+    updateBackgroundMusic(delta) {
+        this.songTimer -= delta;
+        
+        if (this.songTimer <= 0) {
+            // Stop current music if playing and has stop method
+            if (this.currentBackgroundMusic && this.currentBackgroundMusic.stop) {
+                this.currentBackgroundMusic.stop();
+            }
+            
+            // Play next song
+            const songKey = this.songs[this.currentSongIndex];
+            this.currentBackgroundMusic = this.sound.play(songKey, { 
+                loop: false,
+                volume: 0.3 // Adjust volume as needed
+            });
+            
+            // Get exact duration from our map
+            const songDuration = this.songDurations[songKey];
+            
+            if (songDuration) {
+                // Convert duration from seconds to milliseconds and add 1 minute cooldown
+                const songDurationMs = songDuration * 1000;
+                this.songTimer = songDurationMs + this.songDelay;
+                console.log(`Playing ${songKey}, duration: ${songDuration}s (${Math.floor(songDuration/60)}:${(songDuration%60).toString().padStart(2,'0')}), next song in: ${this.songTimer/1000}s`);
+            } else {
+                // Fallback to 3 minutes if song not found in map
+                const fallbackDuration = 180; // 3 minutes in seconds
+                this.songTimer = (fallbackDuration * 1000) + this.songDelay;
+                console.log(`Playing ${songKey}, duration not in map, using 3min fallback, next song in: ${this.songTimer/1000}s`);
+            }
+            
+            // Move to next song
+            this.currentSongIndex = (this.currentSongIndex + 1) % this.songs.length;
+        }
     }
 }

@@ -123,6 +123,10 @@ export default class CombatSystem {
 
         // Set up collision detection
         this.setupProjectileCollision(projectile);
+
+        // Play random cannon fire sound for each projectile
+        const cannonSound = Math.random() < 0.5 ? 'cannon_shot_1' : 'cannon_shot_2';
+        this.scene.sound.play(cannonSound);
     }
 
     getProjectileTexture(ammoType) {
@@ -193,6 +197,9 @@ export default class CombatSystem {
     }
 
     handleProjectileHit(projectile, targetShip) {
+        // Play wood breaking sound when projectile hits a ship
+        this.scene.sound.play('wood_breaking');
+        
         // Apply damage based on ammo type
         const damage = this.calculateDamage(projectile.ammoType, targetShip);
         

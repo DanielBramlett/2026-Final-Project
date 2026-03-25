@@ -120,6 +120,9 @@ export class Port extends Obstacle {
             (player, port) => {
                 if (!this.playerInContact) {
                     console.log('Port: Player made direct contact with', this.portName);
+                    console.log('Player position:', player.x, player.y);
+                    console.log('Port position:', this.x, this.y);
+                    console.log('Distance:', Phaser.Math.Distance.Between(player.x, player.y, this.x, this.y));
                     this.playerInContact = true;
                     this.showContactPopup();
                 }
@@ -127,6 +130,8 @@ export class Port extends Obstacle {
             null,
             this
         );
+        
+        console.log(`Port ${this.portName}: Initial collision detection set up with player ship`);
         
         // Set up exit detection using distance check
         this.exitCheckTimer = scene.time.addEvent({
@@ -223,6 +228,9 @@ export class Port extends Obstacle {
     showContactPopup() {
         if (this.contactPopup) return;
         
+        // Collect any ready ships when player enters port
+        this.collectReadyShips();
+        
         const menuX = this.scene.cameras.main.width / 2;
         const menuY = 150;
         
@@ -318,9 +326,17 @@ export class Port extends Obstacle {
                 }
             ),
             this.scene.add.text(
-                menuX, menuY + 110, 'Ship Inventory', {
+                menuX, menuY + 110, 'Build Ship', {
                     fontSize: '30px',
                     fill: this.selectedOption === 3 ? '#ffff00' : '#fff',
+                    backgroundColor: '#000000',
+                    padding: { x: 10, y: 5 }
+                }
+            ),
+            this.scene.add.text(
+                menuX, menuY + 160, 'Ship Inventory', {
+                    fontSize: '30px',
+                    fill: this.selectedOption === 4 ? '#ffff00' : '#fff',
                     backgroundColor: '#000000',
                     padding: { x: 10, y: 5 }
                 }
@@ -335,7 +351,7 @@ export class Port extends Obstacle {
         
         // Create instructions
         this.menuInstructions = this.scene.add.text(
-            menuX, menuY + 165, 'Use UP/DOWN to select', {
+            menuX, menuY + 215, 'Use UP/DOWN to select', {
                 fontSize: '30px',
                 fill: '#ccc',
                 backgroundColor: '#000000',
@@ -348,7 +364,7 @@ export class Port extends Obstacle {
         
         // Create second instruction line
         this.menuInstructions2 = this.scene.add.text(
-            menuX, menuY + 200, 'ENTER to confirm, ESC to close', {
+            menuX, menuY + 250, 'ENTER to confirm, ESC to close', {
                 fontSize: '28px',
                 fill: '#ccc',
                 backgroundColor: '#000000',
@@ -365,6 +381,9 @@ export class Port extends Obstacle {
     
     hideMenu() {
         if (!this.menuActive) return;
+        
+        // Play anchor sound when exiting port menu
+        this.scene.sound.play('anchor');
         
         this.menuActive = false;
         this.menuDestroying = true; // Flag to prevent updateMenu from running
@@ -457,8 +476,316 @@ export class Port extends Obstacle {
                 this.showBuyShipsMenu();
                 break;
             case 3:
+                this.showBuildShipMenu();
+                break;
+            case 4:
                 this.showShipInventory();
                 break;
+        }
+    }
+    
+    showBuildShipMenu() {
+        // Hide current menu
+        this.hideMenu();
+        
+        // Create build ship menu
+        const menuX = this.scene.cameras.main.width / 2;
+        const menuY = this.scene.cameras.main.height / 2;
+        
+        const buildBackground = this.scene.add.rectangle(
+            menuX, menuY, 750, 700, 0x000000, 0.9
+        );
+        buildBackground.setScrollFactor(0);
+        buildBackground.setDepth(1000);
+        this.buildBackground = buildBackground; // Store for cleanup
+        
+        const buildTitle = this.scene.add.text(
+            menuX, menuY - 270, 'Build Ship', {
+            fontSize: '60px',
+            fill: '#00ff00',
+            backgroundColor: '#000000',
+            padding: { x: 10, y: 5 }
+        }
+        );
+        buildTitle.setScrollFactor(0);
+        buildTitle.setDepth(1001);
+        buildTitle.setOrigin(0.5, 0.5);
+        this.buildTitle = buildTitle; // Store for cleanup
+        
+        // Define available ships for building (exclude already owned ships)
+        const playerOwnedShips = this.scene.playerShip.ownedShips || ['SLOOP'];
+        
+        this.buildableShips = Object.entries(SHIP_TYPES).filter(([key, ship]) => 
+            !playerOwnedShips.includes(key)
+        );
+        
+        // Calculate build cost (60% of buy price) and build time
+        this.buildableShips = this.buildableShips.map(([key, ship]) => {
+            const buyPrice = ship.size * 2 + ship.cannons * 5 + ship.cargoMax * 2;
+            const buildCost = Math.round(buyPrice * 0.6); // 60% of buy price
+            //const buildTimeMinutes = Math.ceil(ship.size / 100); // 1 day = 1 minute, based on ship size
+            const buildTimeMinutes = 0.5;
+            return [key, ship, buildCost, buildTimeMinutes];
+        });
+        
+        if (this.buildableShips.length === 0) {
+            // Show no ships message
+            const noShipsText = this.scene.add.text(
+                menuX, menuY, 
+                'No ships available to build!\n\nPress ESC to return to main menu', {
+                fontSize: '30px',
+                fill: '#fff',
+                backgroundColor: '#000000',
+                padding: { x: 15, y: 10 },
+                align: 'center'
+            }
+            );
+            noShipsText.setScrollFactor(0);
+            noShipsText.setDepth(1001);
+            noShipsText.setOrigin(0.5, 0.5);
+            
+            // Add close handler
+            const escapeKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+            escapeKey.once('down', () => {
+                buildBackground.destroy();
+                buildTitle.destroy();
+                noShipsText.destroy();
+                escapeKey.destroy();
+                this.showMenu(); // Return to main menu
+            });
+            return;
+        }
+        
+        this.selectedBuildShipIndex = 0;
+        
+        // Create scrollable ship list
+        this.buildShipsScrollOffset = 0;
+        this.maxBuildShipsScrollOffset = Math.max(0, (this.buildableShips.length - 4) * 120);
+        
+        // Create scrollable container for ships
+        this.buildShipsContainer = this.scene.add.container(menuX, menuY - 80);
+        this.buildShipsContainer.setScrollFactor(0);
+        this.buildShipsContainer.setDepth(1001);
+        
+        this.updateBuildShipsList();
+        
+        // Add player status info
+        const buildStatusText = this.scene.add.text(
+            menuX, menuY - 200, 
+            `Gold: ${this.scene.playerShip.gold}`, {
+            fontSize: '28px',
+            fill: '#ffff00',
+            backgroundColor: '#000000',
+            padding: { x: 10, y: 5 }
+        }
+        );
+        buildStatusText.setScrollFactor(0);
+        buildStatusText.setDepth(1001);
+        buildStatusText.setOrigin(0.5, 0.5);
+        this.buildStatusText = buildStatusText; // Store for cleanup
+        
+        // Add instructions
+        const buildInstructionText = this.scene.add.text(
+            menuX, menuY + 330, 
+            'UP/DOWN: Select ship |ENTER: Build | ESC: Back', {
+            fontSize: '24px',
+            fill: '#ccc',
+            backgroundColor: '#000000',
+            padding: { x: 10, y: 5 },
+            align: 'center'
+        }
+        );
+        buildInstructionText.setScrollFactor(0);
+        buildInstructionText.setDepth(1001);
+        buildInstructionText.setOrigin(0.5, 0.5);
+        this.buildInstructionText = buildInstructionText; // Store for cleanup
+        
+        // Add build result text (initially hidden)
+        this.buildResultText = this.scene.add.text(
+            menuX, menuY + 345, '', {
+            fontSize: '22px',
+            fill: '#00ff00',
+            backgroundColor: '#000000',
+            padding: { x: 10, y: 5 }
+        }
+        );
+        this.buildResultText.setScrollFactor(0);
+        this.buildResultText.setDepth(1001);
+        this.buildResultText.setOrigin(0.5, 0.5);
+        this.buildResultText.setVisible(false);
+        
+        // Set up build keys
+        this.buildKeys = {
+            up: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP),
+            down: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN),
+            enter: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER),
+            escape: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
+        };
+    }
+    
+    updateBuildShipsList() {
+        if (!this.buildableShips || this.buildableShips.length === 0) {
+            return;
+        }
+        
+        // Clear existing ship texts
+        this.buildShipsContainer.removeAll(true);
+        
+        // Create ship entries for visible range
+        const startIndex = Math.floor(this.buildShipsScrollOffset / 120);
+        const endIndex = Math.min(startIndex + 4, this.buildableShips.length);
+        
+        for (let i = startIndex; i < endIndex; i++) {
+            const [key, ship, buildCost, buildTimeMinutes] = this.buildableShips[i];
+            const yOffset = (i * 120) - this.buildShipsScrollOffset - 60;
+            
+            // Determine if this ship is selected
+            const isSelected = (i === this.selectedBuildShipIndex);
+            const shipColor = isSelected ? '#ffff00' : '#fff';
+            const canAfford = this.scene.playerShip.gold >= buildCost;
+            const priceColor = canAfford ? '#00ff00' : '#ff0000';
+            
+            // Ship name and build cost
+            const nameText = this.scene.add.text(0, yOffset, 
+                `${ship.name} - ${buildCost} gold to build`, {
+                fontSize: '28px',
+                fill: canAfford ? shipColor : '#888888',
+                backgroundColor: 'transparent',
+                padding: { x: 5, y: 2 }
+            });
+            nameText.setOrigin(0.5, 0.5);
+            
+            // Ship stats
+            const statsText = this.scene.add.text(0, yOffset + 25, 
+                `Size: ${ship.size} | Speed: ${ship.speed} | Cannons: ${ship.cannons}`, {
+                fontSize: '20px',
+                fill: canAfford ? (isSelected ? '#ffff00' : '#ccc') : '#666666',
+                backgroundColor: 'transparent',
+                padding: { x: 5, y: 2 }
+            });
+            statsText.setOrigin(0.5, 0.5);
+            
+            // Cargo, crew, and build time
+            const detailsText = this.scene.add.text(0, yOffset + 50, 
+                `Cargo: ${ship.cargoMax} | Crew: ${ship.crewMax} | Build time: ${buildTimeMinutes} day${buildTimeMinutes !== 1 ? 's' : ''}`, {
+                fontSize: '20px',
+                fill: canAfford ? (isSelected ? '#ffff00' : '#aaa') : '#555555',
+                backgroundColor: 'transparent',
+                padding: { x: 5, y: 2 }
+            });
+            detailsText.setOrigin(0.5, 0.5);
+            
+            // Affordability indicator (only for selected item)
+            if (isSelected) {
+                const affordText = this.scene.add.text(0, yOffset + 75, 
+                    canAfford ? 'Can afford to build!' : 'Not enough gold!', {
+                    fontSize: '22px',
+                    fill: priceColor,
+                    backgroundColor: 'transparent',
+                    padding: { x: 5, y: 2 }
+                });
+                affordText.setOrigin(0.5, 0.5);
+                this.buildShipsContainer.add([nameText, statsText, detailsText, affordText]);
+            } else {
+                this.buildShipsContainer.add([nameText, statsText, detailsText]);
+            }
+        }
+    }
+    
+    buildShip() {
+        if (this.selectedBuildShipIndex >= 0 && this.selectedBuildShipIndex < this.buildableShips.length) {
+            const [shipKey, ship, buildCost, buildTimeMinutes] = this.buildableShips[this.selectedBuildShipIndex];
+            
+            if (this.scene.playerShip.gold < buildCost) {
+                this.buildResultText.setText('Not enough gold!');
+                this.buildResultText.setFill('#ff0000');
+                this.buildResultText.setVisible(true);
+                
+                setTimeout(() => {
+                    if (this.buildResultText) {
+                        this.buildResultText.setVisible(false);
+                    }
+                }, 2000);
+                return;
+            }
+            
+            // Show naming popup before completing the build
+            this.showShipNamingPopup(
+                shipKey,
+                ship,
+                (shipName) => {
+                    // Confirm callback - complete the build
+                    this.completeShipBuild(shipKey, ship, buildCost, buildTimeMinutes, shipName);
+                },
+                () => {
+                    // Cancel callback - just return to the build menu
+                    this.buildResultText.setText('Build cancelled');
+                    this.buildResultText.setFill('#ffff00');
+                    this.buildResultText.setVisible(true);
+                    
+                    setTimeout(() => {
+                        if (this.buildResultText) {
+                            this.buildResultText.setVisible(false);
+                        }
+                    }, 1500);
+                }
+            );
+        }
+    }
+    
+    completeShipBuild(shipKey, ship, buildCost, buildTimeMinutes, shipName) {
+        // Deduct gold for building
+        this.scene.playerShip.gold -= buildCost;
+        
+        // Initialize ship building system if not already present
+        if (!this.scene.playerShip.shipBuilds) {
+            this.scene.playerShip.shipBuilds = [];
+        }
+        
+        // Add ship to build queue with custom name
+        const buildStartTime = Date.now();
+        const buildEndTime = buildStartTime + (buildTimeMinutes * 60 * 1000); // Convert minutes to milliseconds
+        
+        this.scene.playerShip.shipBuilds.push({
+            shipKey: shipKey,
+            ship: ship,
+            shipName: shipName, // Store the custom name
+            startTime: buildStartTime,
+            endTime: buildEndTime,
+            buildTimeMinutes: buildTimeMinutes
+        });
+        
+        // Show success message
+        this.buildResultText.setText(`Building "${shipName}"! Will be ready in ${buildTimeMinutes} day${buildTimeMinutes !== 1 ? 's' : ''}.`);
+        this.buildResultText.setFill('#00ff00');
+        this.buildResultText.setVisible(true);
+        
+        // Update status display
+        this.buildStatusText.setText(`Gold: ${this.scene.playerShip.gold}`);
+        
+        // NOTE: Ships are no longer removed from available list - players can build multiple of same type
+        
+        // Update ships list to refresh display
+        this.updateBuildShipsList();
+        
+        // Hide result after 3 seconds
+        setTimeout(() => {
+            if (this.buildResultText) {
+                this.buildResultText.setVisible(false);
+            }
+        }, 3000);
+    }
+    
+    cleanupBuildMenu() {
+        if (this.buildBackground) this.buildBackground.destroy();
+        if (this.buildTitle) this.buildTitle.destroy();
+        if (this.buildShipsContainer) this.buildShipsContainer.destroy();
+        if (this.buildStatusText) this.buildStatusText.destroy();
+        if (this.buildInstructionText) this.buildInstructionText.destroy();
+        if (this.buildResultText) this.buildResultText.destroy();
+        if (this.buildKeys) {
+            Object.values(this.buildKeys).forEach(key => key.destroy());
+            this.buildKeys = null;
         }
     }
     
@@ -685,59 +1012,67 @@ export class Port extends Obstacle {
                 return;
             }
             
-            // Purchase the ship (deduct gold only if not in debug mode)
-            if (!this.debugMode) {
-                this.scene.playerShip.gold -= price;
-            }
-            
-            // Add ship to player's owned ships
-            if (!this.scene.playerShip.ownedShips) {
-                this.scene.playerShip.ownedShips = ['SLOOP'];
-            }
-            this.scene.playerShip.ownedShips.push(shipKey);
-            
-            // Show success message
-            const purchaseMessage = this.debugMode ? 
-                `DEBUG: Acquired ${ship.name} for free!` : 
-                `Purchased ${ship.name} for ${price} gold!`;
-            this.buyResultText.setText(purchaseMessage);
-            this.buyResultText.setFill(this.debugMode ? '#ff00ff' : '#00ff00');
-            this.buyResultText.setVisible(true);
-            
-            // Update status display
-            this.buyStatusText.setText(`Gold: ${this.scene.playerShip.gold}`);
-            
-            // Remove purchased ship from available ships
-            this.availableShips.splice(this.selectedBuyShipIndex, 1);
-            
-            if (this.selectedBuyShipIndex >= this.availableShips.length) {
-                this.selectedBuyShipIndex = Math.max(0, this.availableShips.length - 1);
-            }
-            
-            // Update scroll limits
-            this.maxBuyShipsScrollOffset = Math.max(0, (this.availableShips.length - 4) * 120);
-            if (this.buyShipsScrollOffset > this.maxBuyShipsScrollOffset) {
-                this.buyShipsScrollOffset = this.maxBuyShipsScrollOffset;
-            }
-            
-            // Update ships list
-            this.updateBuyShipsList();
-            
-            // Close menu if no more ships available
-            if (this.availableShips.length === 0) {
-                setTimeout(() => {
-                    this.cleanupBuyMenu();
-                    this.showMenu();
-                }, 2000);
-            } else {
-                // Hide result after 2 seconds
-                setTimeout(() => {
-                    if (this.buyResultText) {
-                        this.buyResultText.setVisible(false);
-                    }
-                }, 2000);
-            }
+            // Show naming popup before completing the purchase
+            this.showShipNamingPopup(
+                shipKey,
+                ship,
+                (shipName) => {
+                    // Confirm callback - complete the purchase
+                    this.completeShipPurchase(shipKey, ship, price, shipName);
+                },
+                () => {
+                    // Cancel callback - just return to the buy menu
+                    this.buyResultText.setText('Purchase cancelled');
+                    this.buyResultText.setFill('#ffff00');
+                    this.buyResultText.setVisible(true);
+                    
+                    setTimeout(() => {
+                        if (this.buyResultText) {
+                            this.buyResultText.setVisible(false);
+                        }
+                    }, 1500);
+                }
+            );
         }
+    }
+    
+    completeShipPurchase(shipKey, ship, price, shipName) {
+        // Purchase the ship (deduct gold only if not in debug mode)
+        if (!this.debugMode) {
+            this.scene.playerShip.gold -= price;
+        }
+        
+        // Add ship to player's owned ships (for compatibility)
+        if (!this.scene.playerShip.ownedShips) {
+            this.scene.playerShip.ownedShips = ['SLOOP'];
+        }
+        this.scene.playerShip.ownedShips.push(shipKey);
+        
+        // Add named ship to the new naming system
+        const shipId = this.scene.playerShip.addNamedShip(shipKey, shipName);
+        
+        // Show success message
+        const purchaseMessage = this.debugMode ? 
+            `DEBUG: Acquired "${shipName}" for free!` : 
+            `Purchased "${shipName}" for ${price} gold!`;
+        this.buyResultText.setText(purchaseMessage);
+        this.buyResultText.setFill(this.debugMode ? '#ff00ff' : '#00ff00');
+        this.buyResultText.setVisible(true);
+        
+        // Update status display
+        this.buyStatusText.setText(`Gold: ${this.scene.playerShip.gold}`);
+        
+        // NOTE: Ships are no longer removed from available list - players can buy multiple of same type
+        
+        // Update ships list to refresh display
+        this.updateBuyShipsList();
+        
+        // Hide result after 2 seconds
+        setTimeout(() => {
+            if (this.buyResultText) {
+                this.buyResultText.setVisible(false);
+            }
+        }, 2000);
     }
     
     cleanupBuyMenu() {
@@ -1289,6 +1624,257 @@ export class Port extends Obstacle {
         }
     }
     
+    showShipNamingPopup(shipKey, shipType, onConfirm, onCancel) {
+        const menuX = this.scene.cameras.main.width / 2;
+        const menuY = this.scene.cameras.main.height / 2;
+        
+        // Disable player movement during naming
+        if (this.scene.playerSystem) {
+            this.scene.playerSystem.movementDisabled = true;
+        }
+        
+        // Create popup background
+        this.namingBackground = this.scene.add.rectangle(
+            menuX, menuY, 500, 300, 0x000000, 0.95
+        );
+        this.namingBackground.setScrollFactor(0);
+        this.namingBackground.setDepth(2000);
+        this.namingBackground.setStrokeStyle(3, 0xffffff);
+        
+        // Create popup title
+        this.namingTitle = this.scene.add.text(
+            menuX, menuY - 100, 'Give the ship a name', {
+            fontSize: '32px',
+            fill: '#fff',
+            backgroundColor: 'transparent',
+            padding: { x: 10, y: 5 }
+        });
+        this.namingTitle.setScrollFactor(0);
+        this.namingTitle.setDepth(2001);
+        this.namingTitle.setOrigin(0.5, 0.5);
+        
+        // Create input field background
+        this.inputBackground = this.scene.add.rectangle(
+            menuX, menuY - 20, 400, 50, 0x333333, 1
+        );
+        this.inputBackground.setScrollFactor(0);
+        this.inputBackground.setDepth(2000);
+        this.inputBackground.setStrokeStyle(2, 0x888888);
+        
+        // Create input field text
+        this.inputText = this.scene.add.text(
+            menuX, menuY - 20, '', {
+            fontSize: '24px',
+            fill: '#fff',
+            backgroundColor: 'transparent',
+            padding: { x: 10, y: 5 },
+            fixedWidth: 380,
+            fixedHeight: 40
+        });
+        this.inputText.setScrollFactor(0);
+        this.inputText.setDepth(2001);
+        this.inputText.setOrigin(0.5, 0.5);
+        
+        // Create cursor
+        this.cursor = this.scene.add.rectangle(
+            menuX + 190, menuY - 20, 2, 30, 0xffffff
+        );
+        this.cursor.setScrollFactor(0);
+        this.cursor.setDepth(2002);
+        this.cursor.setVisible(false);
+        
+        // Create confirm button
+        this.confirmButton = this.scene.add.rectangle(
+            menuX - 80, menuY + 60, 120, 40, 0x00aa00, 1
+        );
+        this.confirmButton.setScrollFactor(0);
+        this.confirmButton.setDepth(2000);
+        this.confirmButton.setStrokeStyle(2, 0x00ff00);
+        
+        this.confirmButtonText = this.scene.add.text(
+            menuX - 80, menuY + 60, 'Confirm', {
+            fontSize: '20px',
+            fill: '#fff',
+            backgroundColor: 'transparent'
+        });
+        this.confirmButtonText.setScrollFactor(0);
+        this.confirmButtonText.setDepth(2001);
+        this.confirmButtonText.setOrigin(0.5, 0.5);
+        
+        // Create cancel button
+        this.cancelButton = this.scene.add.rectangle(
+            menuX + 80, menuY + 60, 120, 40, 0xaa0000, 1
+        );
+        this.cancelButton.setScrollFactor(0);
+        this.cancelButton.setDepth(2000);
+        this.cancelButton.setStrokeStyle(2, 0xff0000);
+        
+        this.cancelButtonText = this.scene.add.text(
+            menuX + 80, menuY + 60, 'Cancel', {
+            fontSize: '20px',
+            fill: '#fff',
+            backgroundColor: 'transparent'
+        });
+        this.cancelButtonText.setScrollFactor(0);
+        this.cancelButtonText.setDepth(2001);
+        this.cancelButtonText.setOrigin(0.5, 0.5);
+        
+        // Store callbacks
+        this.onNamingConfirm = onConfirm;
+        this.onNamingCancel = onCancel;
+        
+        // Initialize input state
+        this.inputString = '';
+        this.isNamingActive = true;
+        this.cursorBlinkTimer = 0;
+        
+        // Set up interactive elements
+        this.setupNamingInput();
+        
+        // Set up button hover effects
+        this.setupNamingButtons();
+    }
+
+    setupNamingInput() {
+        // Enable text input
+        this.scene.input.keyboard.on('keydown', (event) => {
+            if (!this.isNamingActive) return;
+            
+            const key = event.keyCode;
+            
+            // Handle character input
+            if (key >= 65 && key <= 90) { // A-Z
+                const char = event.shiftKey ? String.fromCharCode(key) : String.fromCharCode(key).toLowerCase();
+                this.inputString += char;
+                this.updateInputDisplay();
+            } else if (key >= 48 && key <= 57) { // 0-9
+                this.inputString += String.fromCharCode(key);
+                this.updateInputDisplay();
+            } else if (key === 32) { // Space
+                this.inputString += ' ';
+                this.updateInputDisplay();
+            } else if (key === 8) { // Backspace
+                this.inputString = this.inputString.slice(0, -1);
+                this.updateInputDisplay();
+            } else if (key === 13) { // Enter
+                this.confirmShipName();
+            } else if (key === 27) { // Escape
+                this.cancelShipNaming();
+            }
+        });
+        
+        // Start cursor blinking
+        this.cursor.setVisible(true);
+    }
+    
+    setupNamingButtons() {
+        // Make buttons interactive
+        this.confirmButton.setInteractive();
+        this.cancelButton.setInteractive();
+        
+        // Button hover effects
+        this.confirmButton.on('pointerover', () => {
+            this.confirmButton.setFillStyle(0x00cc00);
+        });
+        this.confirmButton.on('pointerout', () => {
+            this.confirmButton.setFillStyle(0x00aa00);
+        });
+        this.confirmButton.on('pointerdown', () => {
+            this.confirmShipName();
+        });
+        
+        this.cancelButton.on('pointerover', () => {
+            this.cancelButton.setFillStyle(0xcc0000);
+        });
+        this.cancelButton.on('pointerout', () => {
+            this.cancelButton.setFillStyle(0xaa0000);
+        });
+        this.cancelButton.on('pointerdown', () => {
+            this.cancelShipNaming();
+        });
+    }
+    
+    updateInputDisplay() {
+        this.inputText.setText(this.inputString);
+        // Update cursor position
+        const textWidth = this.inputText.width;
+        this.cursor.x = (this.scene.cameras.main.width / 2) + (textWidth / 2) + 10;
+    }
+    
+    confirmShipName() {
+        if (!this.isNamingActive) return;
+        
+        const shipName = this.inputString.trim();
+        if (shipName.length === 0) {
+            // Show error message
+            this.showError('Please enter a ship name!');
+            return;
+        }
+        
+        if (this.onNamingConfirm) {
+            this.onNamingConfirm(shipName);
+        }
+        this.cleanupNamingPopup();
+    }
+    
+    cancelShipNaming() {
+        if (!this.isNamingActive) return;
+        
+        if (this.onNamingCancel) {
+            this.onNamingCancel();
+        }
+        this.cleanupNamingPopup();
+    }
+    
+    showError(message) {
+        // Create error text
+        const errorText = this.scene.add.text(
+            this.scene.cameras.main.width / 2, 
+            this.scene.cameras.main.height / 2 + 120,
+            message, {
+            fontSize: '20px',
+            fill: '#ff0000',
+            backgroundColor: 'transparent',
+            padding: { x: 10, y: 5 }
+        });
+        errorText.setScrollFactor(0);
+        errorText.setDepth(2003);
+        errorText.setOrigin(0.5, 0.5);
+        
+        // Remove error after 2 seconds
+        setTimeout(() => {
+            if (errorText) errorText.destroy();
+        }, 2000);
+    }
+    
+    cleanupNamingPopup() {
+        this.isNamingActive = false;
+        
+        // Re-enable player movement
+        if (this.scene.playerSystem) {
+            this.scene.playerSystem.movementDisabled = false;
+        }
+        
+        // Remove keyboard listener
+        this.scene.input.keyboard.off('keydown');
+        
+        // Destroy popup elements
+        if (this.namingBackground) this.namingBackground.destroy();
+        if (this.namingTitle) this.namingTitle.destroy();
+        if (this.inputBackground) this.inputBackground.destroy();
+        if (this.inputText) this.inputText.destroy();
+        if (this.cursor) this.cursor.destroy();
+        if (this.confirmButton) this.confirmButton.destroy();
+        if (this.confirmButtonText) this.confirmButtonText.destroy();
+        if (this.cancelButton) this.cancelButton.destroy();
+        if (this.cancelButtonText) this.cancelButtonText.destroy();
+        
+        // Clear references
+        this.onNamingConfirm = null;
+        this.onNamingCancel = null;
+        this.inputString = '';
+    }
+
     showShipInventory() {
         // Hide current menu
         this.hideMenu();
@@ -1317,17 +1903,34 @@ export class Port extends Obstacle {
         inventoryTitle.setOrigin(0.5, 0.5);
         this.inventoryTitle = inventoryTitle; // Store for cleanup
         
-        // Get player's owned ships
-        const playerOwnedShips = this.scene.playerShip.ownedShips || ['SLOOP'];
-        const ownedShips = Object.entries(SHIP_TYPES).filter(([key]) => playerOwnedShips.includes(key));
+        // Get player's named ships
+        const namedShips = this.scene.playerShip.getAllNamedShips();
+        const namedShipIds = Object.keys(namedShips);
         
-        console.log('Owned ships count:', ownedShips.length);
-        console.log('Owned ships:', ownedShips.map(([key, ship]) => ship.name));
+        // Create array of ships with their names and types
+        this.inventoryShips = [];
+        for (const shipId of namedShipIds) {
+            const namedShip = namedShips[shipId];
+            const shipType = SHIP_TYPES[namedShip.shipKey];
+            if (shipType) {
+                this.inventoryShips.push({
+                    shipId: shipId,
+                    shipKey: namedShip.shipKey,
+                    shipName: namedShip.shipName,
+                    shipType: shipType
+                });
+            }
+        }
+        
+        // Sort by acquisition time (newest first)
+        this.inventoryShips.sort((a, b) => namedShips[b.shipId].acquiredAt - namedShips[a.shipId].acquiredAt);
+        
+        console.log('Inventory ships count:', this.inventoryShips.length);
+        console.log('Inventory ships:', this.inventoryShips.map(s => `${s.shipName} (${s.shipKey})`));
         
         // Create scrollable ship list
         this.inventoryScrollOffset = 0;
-        this.maxScrollOffset = Math.max(0, (ownedShips.length - 6) * 80);
-        this.ownedShips = ownedShips;
+        this.maxScrollOffset = Math.max(0, (this.inventoryShips.length - 6) * 80);
         this.selectedShipIndex = 0; // Track selected ship
         
         // Create scrollable container
@@ -1386,10 +1989,10 @@ export class Port extends Obstacle {
     }
     
     updateShipList() {
-        console.log('updateShipList called, ownedShips:', this.ownedShips?.length);
+        console.log('updateShipList called, inventoryShips:', this.inventoryShips?.length);
         
-        if (!this.ownedShips || this.ownedShips.length === 0) {
-            console.log('No owned ships to display');
+        if (!this.inventoryShips || this.inventoryShips.length === 0) {
+            console.log('No ships to display in inventory');
             return;
         }
         
@@ -1398,22 +2001,22 @@ export class Port extends Obstacle {
         
         // Create ship entries for visible range with proper scrolling
         const startIndex = Math.floor(this.inventoryScrollOffset / 80);
-        const endIndex = Math.min(startIndex + 6, this.ownedShips.length);
+        const endIndex = Math.min(startIndex + 6, this.inventoryShips.length);
         
-        console.log(`Displaying ships ${startIndex + 1} to ${endIndex} of ${this.ownedShips.length}, offset: ${this.inventoryScrollOffset}`);
+        console.log(`Displaying ships ${startIndex + 1} to ${endIndex} of ${this.inventoryShips.length}, offset: ${this.inventoryScrollOffset}`);
         
         for (let i = startIndex; i < endIndex; i++) {
-            const [key, ship] = this.ownedShips[i];
+            const ship = this.inventoryShips[i];
             const yOffset = (i * 80) - this.inventoryScrollOffset - 100;
             
-            console.log(`Creating text for ship: ${ship.name} at y: ${yOffset}`);
+            console.log(`Creating text for ship: ${ship.shipName} (${ship.shipKey}) at y: ${yOffset}`);
             
             // Determine if this ship is selected
             const isSelected = (i === this.selectedShipIndex);
             const shipColor = isSelected ? '#ffff00' : '#fff';
             
-            // Ship name
-            const nameText = this.scene.add.text(0, yOffset, `${i + 1}. ${ship.name}`, {
+            // Ship name (custom name)
+            const nameText = this.scene.add.text(0, yOffset, `${i + 1}. "${ship.shipName}"`, {
                 fontSize: '28px',
                 fill: shipColor,
                 backgroundColor: 'transparent',
@@ -1421,19 +2024,19 @@ export class Port extends Obstacle {
             });
             nameText.setOrigin(0.5, 0.5);
             
-            // Ship stats
-            const statsText = this.scene.add.text(0, yOffset + 30, 
-                `Size: ${ship.size} | Speed: ${ship.speed} | Cannons: ${ship.cannons}`, {
+            // Ship class and stats
+            const classText = this.scene.add.text(0, yOffset + 30, 
+                `${ship.shipType.name} - Size: ${ship.shipType.size} | Speed: ${ship.shipType.speed} | Cannons: ${ship.shipType.cannons}`, {
                 fontSize: '24px',
                 fill: isSelected ? '#ffff00' : '#ccc',
                 backgroundColor: 'transparent',
                 padding: { x: 5, y: 2 }
             });
-            statsText.setOrigin(0.5, 0.5);
+            classText.setOrigin(0.5, 0.5);
             
             // Cargo and crew
             const detailsText = this.scene.add.text(0, yOffset + 55, 
-                `Cargo: ${ship.cargoMax} | Crew: ${ship.crewMax}`, {
+                `Cargo: ${ship.shipType.cargoMax} | Crew: ${ship.shipType.crewMax}`, {
                 fontSize: '24px',
                 fill: isSelected ? '#ffff00' : '#aaa',
                 backgroundColor: 'transparent',
@@ -1441,20 +2044,20 @@ export class Port extends Obstacle {
             });
             detailsText.setOrigin(0.5, 0.5);
             
-            this.scrollContainer.add([nameText, statsText, detailsText]);
+            this.scrollContainer.add([nameText, classText, detailsText]);
         }
         
         console.log(`Added ${this.scrollContainer.list.length} text elements to container`);
     }
     
     changePlayerShip() {
-        if (this.selectedShipIndex >= 0 && this.selectedShipIndex < this.ownedShips.length) {
-            const [shipKey, shipType] = this.ownedShips[this.selectedShipIndex];
-            console.log(`Changing player ship to: ${shipType.name} (${shipKey})`);
+        if (this.selectedShipIndex >= 0 && this.selectedShipIndex < this.inventoryShips.length) {
+            const ship = this.inventoryShips[this.selectedShipIndex];
+            console.log(`Changing player ship to: ${ship.shipName} (${ship.shipKey})`);
             
             // The scene's changePlayerShip method now handles preserving gold and cargo
             // and spawning the player outside the port
-            this.scene.playerSystem.changePlayerShip(shipType);
+            this.scene.playerSystem.changePlayerShip(ship.shipType);
             
             // Clean up all inventory menu elements
             if (this.inventoryBackground) this.inventoryBackground.destroy();
@@ -1472,7 +2075,129 @@ export class Port extends Obstacle {
         }
     }
     
+    checkShipBuilds() {
+        if (!this.scene.playerShip.shipBuilds || this.scene.playerShip.shipBuilds.length === 0) {
+            return;
+        }
+        
+        const currentTime = Date.now();
+        const completedBuilds = [];
+        
+        // Check for completed builds
+        this.scene.playerShip.shipBuilds = this.scene.playerShip.shipBuilds.filter(build => {
+            if (currentTime >= build.endTime) {
+                completedBuilds.push(build);
+                return false; // Remove from build queue
+            }
+            return true; // Keep in build queue
+        });
+        
+        // Show notifications for completed builds
+        completedBuilds.forEach(build => {
+            // Show notification to player with custom name
+            this.showShipReadyNotification(build.shipName || build.ship.name);
+            
+            // Add named ship to player's inventory immediately
+            const shipId = this.scene.playerShip.addNamedShip(build.shipKey, build.shipName || build.ship.name);
+            
+            // Also add to ownedShips for compatibility
+            if (!this.scene.playerShip.ownedShips) {
+                this.scene.playerShip.ownedShips = ['SLOOP'];
+            }
+            this.scene.playerShip.ownedShips.push(build.shipKey);
+            
+            console.log(`"${build.shipName || build.ship.name}" has finished building! Added to fleet.`);
+        });
+    }
+    
+    showShipReadyNotification(shipName) {
+        // Create notification popup at bottom middle of screen
+        const notificationX = this.scene.cameras.main.width / 2;
+        const notificationY = this.scene.cameras.main.height - 100;
+        
+        const notification = this.scene.add.container(notificationX, notificationY);
+        
+        // Create background
+        const background = this.scene.add.rectangle(0, 0, 400, 80, 0x000000, 0.8);
+        background.setStrokeStyle(2, 0x00ff00);
+        
+        // Create text
+        const text = this.scene.add.text(0, 0, `Your ${shipName} is ready!`, {
+            fontSize: '24px',
+            fill: '#00ff00',
+            backgroundColor: 'transparent',
+            padding: { x: 10, y: 5 }
+        });
+        text.setOrigin(0.5, 0.5);
+        
+        notification.add([background, text]);
+        notification.setScrollFactor(0);
+        notification.setDepth(2000);
+        
+        // Auto-destroy after 2 seconds
+        setTimeout(() => {
+            notification.destroy();
+        }, 2000);
+    }
+    
+    collectReadyShips() {
+        if (!this.scene.playerShip.readyShips || this.scene.playerShip.readyShips.length === 0) {
+            return;
+        }
+        
+        // Add all ready ships to player's inventory
+        this.scene.playerShip.readyShips.forEach(shipKey => {
+            if (!this.scene.playerShip.ownedShips) {
+                this.scene.playerShip.ownedShips = ['SLOOP'];
+            }
+            this.scene.playerShip.ownedShips.push(shipKey);
+        });
+        
+        // Clear ready ships list
+        const collectedCount = this.scene.playerShip.readyShips.length;
+        this.scene.playerShip.readyShips = [];
+        
+        if (collectedCount > 0) {
+            // Show collection notification
+            this.showCollectionNotification(collectedCount);
+        }
+    }
+    
+    showCollectionNotification(count) {
+        // Create notification popup at bottom middle of screen
+        const notificationX = this.scene.cameras.main.width / 2;
+        const notificationY = this.scene.cameras.main.height - 100;
+        
+        const notification = this.scene.add.container(notificationX, notificationY);
+        
+        // Create background
+        const background = this.scene.add.rectangle(0, 0, 450, 80, 0x000000, 0.8);
+        background.setStrokeStyle(2, 0x00ff00);
+        
+        // Create text
+        const text = this.scene.add.text(0, 0, 
+            `Collected ${count} ship${count > 1 ? 's' : ''}!`, {
+            fontSize: '24px',
+            fill: '#00ff00',
+            backgroundColor: 'transparent',
+            padding: { x: 10, y: 5 }
+        });
+        text.setOrigin(0.5, 0.5);
+        
+        notification.add([background, text]);
+        notification.setScrollFactor(0);
+        notification.setDepth(2000);
+        
+        // Auto-destroy after 2 seconds
+        setTimeout(() => {
+            notification.destroy();
+        }, 2000);
+    }
+    
     update() {
+        // Check for completed ship builds
+        this.checkShipBuilds();
+        
         // Check for debug mode activation (G + J simultaneously)
         if (this.debugKeyG && this.debugKeyJ && 
             this.debugKeyG.isDown && this.debugKeyJ.isDown && 
@@ -1490,6 +2215,8 @@ export class Port extends Obstacle {
         // Check for C key press when in contact
         if (this.playerInContact && !this.menuActive && Phaser.Input.Keyboard.JustDown(this.dockKey)) {
             console.log('Port: C key pressed, opening menu for', this.portName);
+            // Play anchor sound when pressing C to dock
+            this.scene.sound.play('anchor');
             this.showMenu();
         }
         
@@ -1503,7 +2230,7 @@ export class Port extends Obstacle {
                 
                 // Adjust scroll if selection is out of view
                 const visibleStart = Math.floor(this.inventoryScrollOffset / 80);
-                const visibleEnd = Math.min(visibleStart + 6, this.ownedShips.length);
+                const visibleEnd = Math.min(visibleStart + 6, this.inventoryShips.length);
                 if (this.selectedShipIndex < visibleStart) {
                     this.inventoryScrollOffset = this.selectedShipIndex * 80;
                 }
@@ -1513,11 +2240,11 @@ export class Port extends Obstacle {
             
             if (Phaser.Input.Keyboard.JustDown(this.scrollKeys.down)) {
                 // Move selection down
-                this.selectedShipIndex = Math.min(this.ownedShips.length - 1, this.selectedShipIndex + 1);
+                this.selectedShipIndex = Math.min(this.inventoryShips.length - 1, this.selectedShipIndex + 1);
                 
                 // Adjust scroll if selection is out of view
                 const visibleStart = Math.floor(this.inventoryScrollOffset / 80);
-                const visibleEnd = Math.min(visibleStart + 6, this.ownedShips.length);
+                const visibleEnd = Math.min(visibleStart + 6, this.inventoryShips.length);
                 if (this.selectedShipIndex >= visibleEnd) {
                     this.inventoryScrollOffset = Math.max(0, (this.selectedShipIndex - 5) * 80);
                 }
@@ -1528,6 +2255,48 @@ export class Port extends Obstacle {
             if (Phaser.Input.Keyboard.JustDown(this.scrollKeys.enter)) {
                 // Confirm ship selection
                 this.changePlayerShip();
+            }
+        }
+        
+        // Handle build ships menu input
+        if (this.buildKeys) {
+            if (Phaser.Input.Keyboard.JustDown(this.buildKeys.up)) {
+                // Move selection up
+                this.selectedBuildShipIndex = Math.max(0, this.selectedBuildShipIndex - 1);
+                
+                // Adjust scroll if selection is out of view
+                const visibleStart = Math.floor(this.buildShipsScrollOffset / 120);
+                const visibleEnd = Math.min(visibleStart + 4, this.buildableShips.length);
+                if (this.selectedBuildShipIndex < visibleStart) {
+                    this.buildShipsScrollOffset = this.selectedBuildShipIndex * 120;
+                }
+                
+                this.updateBuildShipsList();
+            }
+            
+            if (Phaser.Input.Keyboard.JustDown(this.buildKeys.down)) {
+                // Move selection down
+                this.selectedBuildShipIndex = Math.min(this.buildableShips.length - 1, this.selectedBuildShipIndex + 1);
+                
+                // Adjust scroll if selection is out of view
+                const visibleStart = Math.floor(this.buildShipsScrollOffset / 120);
+                const visibleEnd = Math.min(visibleStart + 4, this.buildableShips.length);
+                if (this.selectedBuildShipIndex >= visibleEnd) {
+                    this.buildShipsScrollOffset = Math.max(0, (this.selectedBuildShipIndex - 3) * 120);
+                }
+                
+                this.updateBuildShipsList();
+            }
+            
+            if (Phaser.Input.Keyboard.JustDown(this.buildKeys.enter)) {
+                // Build selected ship
+                this.buildShip();
+            }
+            
+            if (Phaser.Input.Keyboard.JustDown(this.buildKeys.escape)) {
+                // Clean up build menu and return to main menu
+                this.cleanupBuildMenu();
+                this.showMenu(); // Return to main menu
             }
         }
         

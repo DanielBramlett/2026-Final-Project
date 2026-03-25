@@ -1,3 +1,5 @@
+import { SHIP_TYPES } from '../constants/shipTypes.js';
+
 export default class Ship extends Phaser.Physics.Arcade.Sprite {
     constructor(scene, x, y, shipType) {
         super(scene, x, y);
@@ -24,8 +26,18 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
         this.color = shipType.color || 0x8B4513; // Default brown color for ships
 
         // Trade and inventory properties
-        this.gold = 1000; // Starting gold
+        this.gold = 10000; // Starting gold
         this.ownedShips = ['SLOOP']; // Player starts with only a Sloop
+        this.namedShips = {}; // Object to store named ships with their custom names
+        
+        // Add the starting sloop with a default name
+        // This will be overridden when restoring saved named ships in changePlayerShip
+        this.namedShips['SLOOP_START'] = {
+            shipKey: 'SLOOP',
+            shipName: 'Starter Sloop',
+            acquiredAt: Date.now()
+        };
+        
         this.tradeGoods = {
             food: 0,
             cannonballs: 0,
@@ -437,5 +449,55 @@ updateSpriteDirection() {
     getCannonSideCount(side) {
         const cannonsPerSide = Math.floor(this.cannons / 2);
         return cannonsPerSide;
+    }
+
+    // Named ship management methods
+    addNamedShip(shipKey, shipName) {
+        if (!this.namedShips) {
+            this.namedShips = {};
+        }
+        // Generate a unique ID for this named ship
+        const shipId = `${shipKey}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        this.namedShips[shipId] = {
+            shipKey: shipKey,
+            shipName: shipName,
+            acquiredAt: Date.now()
+        };
+        return shipId;
+    }
+
+    removeNamedShip(shipId) {
+        if (this.namedShips && this.namedShips[shipId]) {
+            delete this.namedShips[shipId];
+        }
+    }
+
+    getNamedShip(shipId) {
+        return this.namedShips ? this.namedShips[shipId] : null;
+    }
+
+    getAllNamedShips() {
+        return this.namedShips || {};
+    }
+
+    getNamedShipsByType(shipKey) {
+        const allShips = this.getAllNamedShips();
+        const result = [];
+        for (const shipId in allShips) {
+            if (allShips[shipId].shipKey === shipKey) {
+                result.push({ shipId, ...allShips[shipId] });
+            }
+        }
+        return result;
+    }
+
+    getShipDisplayName(shipId, shipKey) {
+        const namedShip = this.getNamedShip(shipId);
+        if (namedShip) {
+            return namedShip.shipName;
+        }
+        // Fallback to default ship name
+        const shipType = SHIP_TYPES[shipKey];
+        return shipType ? shipType.name : shipKey;
     }
 }
