@@ -512,12 +512,8 @@ export class Port extends Obstacle {
         buildTitle.setOrigin(0.5, 0.5);
         this.buildTitle = buildTitle; // Store for cleanup
         
-        // Define available ships for building (exclude already owned ships)
-        const playerOwnedShips = this.scene.playerShip.ownedShips || ['SLOOP'];
-        
-        this.buildableShips = Object.entries(SHIP_TYPES).filter(([key, ship]) => 
-            !playerOwnedShips.includes(key)
-        );
+        // Define available ships for building (all ships are buildable)
+        this.buildableShips = Object.entries(SHIP_TYPES);
         
         // Calculate build cost (60% of buy price) and build time
         this.buildableShips = this.buildableShips.map(([key, ship]) => {
@@ -1855,8 +1851,8 @@ export class Port extends Obstacle {
             this.scene.playerSystem.movementDisabled = false;
         }
         
-        // Remove keyboard listener
-        this.scene.input.keyboard.off('keydown');
+        // Remove all keyboard listeners more thoroughly
+        this.scene.input.keyboard.removeAllListeners('keydown');
         
         // Destroy popup elements
         if (this.namingBackground) this.namingBackground.destroy();

@@ -93,8 +93,8 @@ export default class GameScene extends Phaser.Scene {
         this.load.image('Santísima_Trinidad_West', 'assets/Santísima_Trinidad_West.png');
         this.load.image('Orient_East', 'assets/Orient_East.png');
         this.load.image('Orient_West', 'assets/Orient_West.png');
-        // this.load.image('Urca_da_Lima_East', 'assets/Urca_da_Lima_East.png');
-        // this.load.image('Urca_da_Lima_West', 'assets/Urca_da_Lima_West.png');
+        this.load.image('Urca_da_Lima_East', 'assets/Urca_da_Lima_East.png');
+        this.load.image('Urca_da_Lima_West', 'assets/Urca_da_Lima_West.png');
         this.load.audio('cannon_shot_1', 'assets/Cannon_Shot_1.mp3');
         this.load.audio('cannon_shot_2', 'assets/Cannon_Shot_2.mp3');
         this.load.audio('rowing', 'assets/Rowing.mp3');
