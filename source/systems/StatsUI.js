@@ -57,7 +57,7 @@ export default class StatsUI {
         this.uiElements.crewText.setDepth(1001);
 
         this.uiElements.healthText = this.scene.add.text(
-            startX - 10,
+            startX - 30,
             startY + 35 + lineHeight,
             '',
             {

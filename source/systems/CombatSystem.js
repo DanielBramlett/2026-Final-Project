@@ -5,6 +5,8 @@ export default class CombatSystem {
         this.lastFireTime = {};
         this.fireRate = 1000; // Base fire rate in milliseconds
         this.selectedAmmo = 'cannonballs'; // Default selected ammo
+        this.individualCannonSounds = true; // Enable individual cannon sounds
+        this.soundDelayPerCannon = 50; // Delay between individual cannon sounds in milliseconds
     }
 
     setSelectedAmmo(ammoType) {
@@ -28,10 +30,22 @@ export default class CombatSystem {
             return false;
         }
 
-        // Calculate cannons per side
+        // Calculate cannons per side, handling odd numbers
         const cannonsPerSide = Math.floor(ship.cannons / 2);
+        const hasExtraCannon = ship.cannons % 2 === 1;
         const leftCannons = side === 'left' || side === 'both' ? cannonsPerSide : 0;
         const rightCannons = side === 'right' || side === 'both' ? cannonsPerSide : 0;
+        
+        // Determine which side gets the extra cannon
+        let extraCannonSide = null;
+        if (hasExtraCannon && side === 'both') {
+            // When firing both sides, alternate which side gets the extra cannon
+            extraCannonSide = Math.random() < 0.5 ? 'left' : 'right';
+        } else if (hasExtraCannon && side === 'left') {
+            extraCannonSide = 'left';
+        } else if (hasExtraCannon && side === 'right') {
+            extraCannonSide = 'right';
+        }
 
         console.log(`🎯 Firing ${leftCannons} left cannons, ${rightCannons} right cannons`);
 
@@ -41,7 +55,7 @@ export default class CombatSystem {
             ship.tradeGoods[this.selectedAmmo]--;
             
             // Create projectiles for this ammo type
-            this.createProjectiles(ship, this.selectedAmmo, leftCannons, rightCannons);
+            this.createProjectiles(ship, this.selectedAmmo, leftCannons, rightCannons, extraCannonSide);
             
             this.lastFireTime[shipId] = currentTime;
             console.log(`✅ Successfully fired ${this.selectedAmmo}! Remaining: ${ship.tradeGoods[this.selectedAmmo]}`);
@@ -52,29 +66,91 @@ export default class CombatSystem {
         return false;
     }
 
-    createProjectiles(ship, ammoType, leftCannons, rightCannons) {
+    createProjectiles(ship, ammoType, leftCannons, rightCannons, extraCannonSide = null) {
         const projectileSpeed = this.getProjectileSpeed(ammoType);
         const projectileDamage = this.getProjectileDamage(ammoType);
         const projectileColor = this.getProjectileColor(ammoType);
 
-        // Fire left side cannons (fire to the left of ship's facing direction)
+        // Calculate wave size (cannons per wave, minimum 1)
+        const totalRegularCannons = leftCannons + rightCannons;
+        const waveSize = Math.max(1, Math.floor(totalRegularCannons / 5));
+        
+        // Create arrays to hold cannon positions for each side
+        const leftCannonPositions = [];
+        const rightCannonPositions = [];
+
+        // Calculate left side cannon positions
         for (let i = 0; i < leftCannons; i++) {
-            // Use same logic as the green arrow 1 (left side)
             const angle = ship.facingAngle + Math.PI / 2; // 90 degrees to the left
-            const spread = (i - leftCannons / 2) * 0.05; // Small spread for multiple cannons
-            this.createProjectile(ship, angle + spread, projectileSpeed, projectileDamage, projectileColor, ammoType);
+            const spread = (i - leftCannons / 2) * 0.02; // Much tighter spread for focused firing
+            leftCannonPositions.push({ angle: angle + spread, side: 'left' });
         }
 
-        // Fire right side cannons (fire to the right of ship's facing direction)
+        // Calculate right side cannon positions
         for (let i = 0; i < rightCannons; i++) {
-            // Use same logic as the green arrow 2 (right side)
             const angle = ship.facingAngle - Math.PI / 2; // 90 degrees to the right
-            const spread = (i - rightCannons / 2) * 0.05; // Small spread for multiple cannons
-            this.createProjectile(ship, angle + spread, projectileSpeed, projectileDamage, projectileColor, ammoType);
+            const spread = (i - rightCannons / 2) * 0.02; // Much tighter spread for focused firing
+            rightCannonPositions.push({ angle: angle + spread, side: 'right' });
         }
+
+        // Combine all regular cannon positions
+        const allCannonPositions = [...leftCannonPositions, ...rightCannonPositions];
+        
+        // Fire cannons in waves, then extra cannon if any
+        this.fireCannonsInWaves(ship, allCannonPositions, projectileSpeed, projectileDamage, projectileColor, ammoType, waveSize, extraCannonSide);
     }
 
-    createProjectile(ship, angle, speed, damage, color, ammoType) {
+    fireCannonsInWaves(ship, cannonPositions, projectileSpeed, projectileDamage, projectileColor, ammoType, waveSize, extraCannonSide = null) {
+        let currentWave = 0;
+        const totalWaves = Math.ceil(cannonPositions.length / waveSize);
+        const waveDelay = 200; // Delay between waves in milliseconds
+        let volleyProjectileCount = 0; // Track projectiles in this volley
+
+        const fireNextWave = () => {
+            const startIndex = currentWave * waveSize;
+            const endIndex = Math.min(startIndex + waveSize, cannonPositions.length);
+            
+            // Fire cannons in this wave
+            for (let i = startIndex; i < endIndex; i++) {
+                const cannonPos = cannonPositions[i];
+                this.createProjectile(ship, cannonPos.angle, projectileSpeed, projectileDamage, projectileColor, ammoType, volleyProjectileCount);
+                volleyProjectileCount++;
+            }
+            
+            currentWave++;
+            
+            // Schedule next wave if there are more cannons to fire
+            if (currentWave < totalWaves) {
+                setTimeout(fireNextWave, waveDelay);
+            } else if (extraCannonSide) {
+                // Fire extra cannon after all main waves are complete
+                setTimeout(() => {
+                    this.fireExtraCannon(ship, extraCannonSide, projectileSpeed, projectileDamage, projectileColor, ammoType, volleyProjectileCount);
+                }, waveDelay);
+            }
+        };
+
+        // Start firing the first wave
+        fireNextWave();
+    }
+
+    fireExtraCannon(ship, side, projectileSpeed, projectileDamage, projectileColor, ammoType, volleyIndex) {
+        // Calculate angle for the extra cannon
+        const angle = side === 'left' ? ship.facingAngle + Math.PI / 2 : ship.facingAngle - Math.PI / 2;
+        
+        // Create the extra projectile
+        this.createProjectile(ship, angle, projectileSpeed, projectileDamage, projectileColor, ammoType, volleyIndex);
+        
+        // Play sound for the extra cannon if individual sounds are disabled
+        if (!this.individualCannonSounds) {
+            const cannonSound = Math.random() < 0.5 ? 'cannon_shot_1' : 'cannon_shot_2';
+            this.scene.sound.play(cannonSound);
+        }
+        
+        console.log(`🎯 Fired extra cannon on ${side} side!`);
+    }
+
+    createProjectile(ship, angle, speed, damage, color, ammoType, volleyIndex = 0) {
         // Calculate starting position (offset from ship center)
         const startDistance = ship.size / 2 + 10;
         const startX = ship.x + Math.cos(angle) * startDistance;
@@ -124,9 +200,11 @@ export default class CombatSystem {
         // Set up collision detection
         this.setupProjectileCollision(projectile);
 
-        // Play random cannon fire sound for each projectile
-        const cannonSound = Math.random() < 0.5 ? 'cannon_shot_1' : 'cannon_shot_2';
-        this.scene.sound.play(cannonSound);
+        // Play individual cannon sound if enabled
+        if (this.individualCannonSounds) {
+            const cannonSound = Math.random() < 0.5 ? 'cannon_shot_1' : 'cannon_shot_2';
+            this.scene.sound.play(cannonSound);
+        }
     }
 
     getProjectileTexture(ammoType) {
@@ -184,6 +262,15 @@ export default class CombatSystem {
             this.scene.physics.add.overlap(projectile, this.scene.playerShip, (proj, playerShip) => {
                 console.log(`💥 Enemy projectile hit player!`);
                 this.handleProjectileHit(proj, playerShip);
+            });
+            
+            // Check collision with other enemy ships (friendly fire)
+            this.scene.physics.add.overlap(projectile, this.scene.enemyShips, (proj, enemyShip) => {
+                // Don't hit the ship that fired the projectile
+                if (enemyShip !== projectile.owner) {
+                    console.log(`💥 Enemy projectile hit another enemy!`);
+                    this.handleProjectileHit(proj, enemyShip);
+                }
             });
         }
 

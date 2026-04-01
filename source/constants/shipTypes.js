@@ -1038,7 +1038,7 @@ export const SHIP_TYPES = {
 
         hitboxScaleY: 0.3,
 
-        hitboxOffsetX: 10,
+        hitboxOffsetX: 20,
 
         hitboxOffsetY: 60,
 
@@ -1212,9 +1212,11 @@ export const SHIP_TYPES = {
 
         isGalley: 0,
 
-        hitboxScaleX: 0.25,
+        image: 'Urca_de_Lima_East',
 
-        hitboxScaleY: 0.15,
+        hitboxScaleX: 0.38,
+
+        hitboxScaleY: 0.32,
 
         needsOffset: 0
 

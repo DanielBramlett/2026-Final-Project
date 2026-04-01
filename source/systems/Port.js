@@ -1,5 +1,6 @@
 import { Obstacle } from './Obstacle.js';
 import { SHIP_TYPES } from '../constants/shipTypes.js';
+import { ShipModificationSystem } from './ShipModificationSystem.js';
 
 export class Port extends Obstacle {
     constructor(scene, x, y, width, height, textureKey, portName = 'Port', region = 'general') {
@@ -18,8 +19,12 @@ export class Port extends Obstacle {
         this.debugKeyG = null;
         this.debugKeyJ = null;
         
+        // Initialize ship modification system
+        this.shipModificationSystem = new ShipModificationSystem(scene);
+        
         // Dynamic pricing system
         this.baseGoods = [
+            { id: 'crew', name: 'Crew', type: 'supplies', basePrice: 10, description: 'Loyal crew, ready to follow on any voyage.'},
             { id: 'food', name: 'Food', type: 'supplies', basePrice: 5, description: 'Essential supplies for your crew' },
             { id: 'cannonballs', name: 'Cannonballs', type: 'supplies', basePrice: 10, description: 'Ammunition for your cannons used on hulls' },
             { id: 'chainshot', name: 'Chainshot', type: 'supplies', basePrice: 10, description: 'Ammunition for your cannons used on sails and crew' },
@@ -147,15 +152,18 @@ export class Port extends Obstacle {
                     );
                     // Player is out of contact if they're beyond the port bounds plus buffer
                     const maxDimension = Math.max(this.width, this.height);
-                    const exitDistance = maxDimension + 100; // Port size + 100px buffer
+                    // Account for ship size in distance calculation - larger ships need more space
+                    const shipSizeBuffer = scene.playerShip.size / 2; // Half of ship size as buffer
+                    const exitDistance = maxDimension + 100 + shipSizeBuffer; // Port size + 100px + ship size buffer
                     
                     if (distance > exitDistance) {
                         console.log('Port: Player exited contact zone for', this.portName);
+                        console.log('Distance:', distance, 'Exit threshold:', exitDistance, 'Ship size:', scene.playerShip.size);
                         this.playerInContact = false;
                         this.hideContactPopup();
                         // Don't close menu if player is actively using it
                         // Only close menu if player moves far away (double the normal distance)
-                        const farDistance = maxDimension + 300; // Port size + 300px buffer
+                        const farDistance = maxDimension + 300 + shipSizeBuffer; // Port size + 300px + ship size buffer
                         if (distance > farDistance && this.menuActive) {
                             this.hideMenu();
                         }
@@ -519,8 +527,7 @@ export class Port extends Obstacle {
         this.buildableShips = this.buildableShips.map(([key, ship]) => {
             const buyPrice = ship.size * 2 + ship.cannons * 5 + ship.cargoMax * 2;
             const buildCost = Math.round(buyPrice * 0.6); // 60% of buy price
-            //const buildTimeMinutes = Math.ceil(ship.size / 100); // 1 day = 1 minute, based on ship size
-            const buildTimeMinutes = 0.5;
+            const buildTimeMinutes = Math.ceil(ship.size / 200 + ship.cannons / 10); // 1 day = 1 minute, based on ship size
             return [key, ship, buildCost, buildTimeMinutes];
         });
         
@@ -1247,8 +1254,13 @@ export class Port extends Obstacle {
             });
             descText.setOrigin(0.5, 0.5);
             
-            // Current inventory
-            const currentAmount = this.scene.playerShip.tradeGoods[good.id] || 0;
+            // Current inventory - special handling for crew
+            let currentAmount;
+            if (good.id === 'crew') {
+                currentAmount = this.scene.playerShip.crew;
+            } else {
+                currentAmount = this.scene.playerShip.tradeGoods[good.id] || 0;
+            }
             const inventoryText = this.scene.add.text(0, yOffset + 50, 
                 `Current: ${currentAmount}`, {
                 fontSize: '20px',
@@ -1353,9 +1365,9 @@ export class Port extends Obstacle {
         sellTitle.setOrigin(0.5, 0.5);
         this.sellTitle = sellTitle; // Store for cleanup
         
-        // Filter goods that player actually has
+        // Filter goods that player actually has (exclude crew from sell menu)
         this.playerGoods = this.currentGoods.filter(good => 
-            this.scene.playerShip.tradeGoods[good.id] > 0
+            good.id !== 'crew' && this.scene.playerShip.tradeGoods[good.id] > 0
         );
         
         if (this.playerGoods.length === 0) {
@@ -1564,9 +1576,9 @@ export class Port extends Obstacle {
                     `Gold: ${this.scene.playerShip.gold} | Cargo: ${this.scene.playerShip.getCurrentCargo()}/${this.scene.playerShip.cargoMax}`
                 );
                 
-                // Check if player still has goods
+                // Check if player still has goods (exclude crew from sell menu)
                 this.playerGoods = this.currentGoods.filter(good => 
-                    this.scene.playerShip.tradeGoods[good.id] > 0
+                    good.id !== 'crew' && this.scene.playerShip.tradeGoods[good.id] > 0
                 );
                 
                 if (this.playerGoods.length === 0) {
@@ -1627,6 +1639,22 @@ export class Port extends Obstacle {
         // Disable player movement during naming
         if (this.scene.playerSystem) {
             this.scene.playerSystem.movementDisabled = true;
+        }
+        
+        // Disable build menu keys while naming popup is active
+        if (this.buildKeys) {
+            this.buildKeys.up.enabled = false;
+            this.buildKeys.down.enabled = false;
+            this.buildKeys.enter.enabled = false;
+            this.buildKeys.escape.enabled = false;
+        }
+        
+        // Disable buy menu keys while naming popup is active (if they exist)
+        if (this.buyKeys) {
+            this.buyKeys.up.enabled = false;
+            this.buyKeys.down.enabled = false;
+            this.buyKeys.enter.enabled = false;
+            this.buyKeys.escape.enabled = false;
         }
         
         // Create popup background
@@ -1851,6 +1879,22 @@ export class Port extends Obstacle {
             this.scene.playerSystem.movementDisabled = false;
         }
         
+        // Re-enable build menu keys when naming popup closes
+        if (this.buildKeys) {
+            this.buildKeys.up.enabled = true;
+            this.buildKeys.down.enabled = true;
+            this.buildKeys.enter.enabled = true;
+            this.buildKeys.escape.enabled = true;
+        }
+        
+        // Re-enable buy menu keys when naming popup closes (if they exist)
+        if (this.buyKeys) {
+            this.buyKeys.up.enabled = true;
+            this.buyKeys.down.enabled = true;
+            this.buyKeys.enter.enabled = true;
+            this.buyKeys.escape.enabled = true;
+        }
+        
         // Remove all keyboard listeners more thoroughly
         this.scene.input.keyboard.removeAllListeners('keydown');
         
@@ -1903,11 +1947,24 @@ export class Port extends Obstacle {
         const namedShips = this.scene.playerShip.getAllNamedShips();
         const namedShipIds = Object.keys(namedShips);
         
+        console.log('Named ships found:', namedShips);
+        console.log('Named ship IDs:', namedShipIds);
+        
         // Create array of ships with their names and types
         this.inventoryShips = [];
         for (const shipId of namedShipIds) {
+            console.log('Processing ship ID:', shipId);
             const namedShip = namedShips[shipId];
+            console.log('Named ship data:', namedShip);
+            
+            if (!namedShip) {
+                console.warn('Skipping null named ship for ID:', shipId);
+                continue;
+            }
+            
             const shipType = SHIP_TYPES[namedShip.shipKey];
+            console.log('Ship type for', namedShip.shipKey, ':', shipType);
+            
             if (shipType) {
                 this.inventoryShips.push({
                     shipId: shipId,
@@ -1915,6 +1972,9 @@ export class Port extends Obstacle {
                     shipName: namedShip.shipName,
                     shipType: shipType
                 });
+                console.log('Added ship to inventory:', namedShip.shipName);
+            } else {
+                console.warn('Ship type not found for key:', namedShip.shipKey);
             }
         }
         
@@ -1927,7 +1987,10 @@ export class Port extends Obstacle {
         // Create scrollable ship list
         this.inventoryScrollOffset = 0;
         this.maxScrollOffset = Math.max(0, (this.inventoryShips.length - 6) * 80);
-        this.selectedShipIndex = 0; // Track selected ship
+        this.selectedShipIndex = (this.inventoryShips.length > 0) ? 0 : -1; // Track selected ship
+        
+        console.log('Initial selectedShipIndex:', this.selectedShipIndex);
+        console.log('Inventory ships length:', this.inventoryShips.length);
         
         // Create scrollable container
         this.scrollContainer = this.scene.add.container(menuX, menuY - 100);
@@ -1939,7 +2002,7 @@ export class Port extends Obstacle {
         
         // Add scroll instructions
         const scrollInstruction = this.scene.add.text(
-            menuX, menuY + 300, 'Use UP/DOWN arrows to scroll and select,\nENTER to confirm ship, ESC to return', {
+            menuX, menuY + 300, 'Use UP/DOWN arrows to scroll and select,\nENTER to confirm ship, M to modify ship, ESC to return', {
             fontSize: '24px',
             fill: '#ffff00',
             backgroundColor: '#000000',
@@ -1964,6 +2027,7 @@ export class Port extends Obstacle {
             up: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP),
             down: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN),
             enter: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER),
+            m: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.M),
             escape: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
         };
         
@@ -2194,6 +2258,9 @@ export class Port extends Obstacle {
         // Check for completed ship builds
         this.checkShipBuilds();
         
+        // Update ship modification system
+        this.shipModificationSystem.handleInput();
+        
         // Check for debug mode activation (G + J simultaneously)
         if (this.debugKeyG && this.debugKeyJ && 
             this.debugKeyG.isDown && this.debugKeyJ.isDown && 
@@ -2223,28 +2290,12 @@ export class Port extends Obstacle {
             if (Phaser.Input.Keyboard.JustDown(this.scrollKeys.up)) {
                 // Move selection up
                 this.selectedShipIndex = Math.max(0, this.selectedShipIndex - 1);
-                
-                // Adjust scroll if selection is out of view
-                const visibleStart = Math.floor(this.inventoryScrollOffset / 80);
-                const visibleEnd = Math.min(visibleStart + 6, this.inventoryShips.length);
-                if (this.selectedShipIndex < visibleStart) {
-                    this.inventoryScrollOffset = this.selectedShipIndex * 80;
-                }
-                
                 this.updateShipList();
             }
             
             if (Phaser.Input.Keyboard.JustDown(this.scrollKeys.down)) {
                 // Move selection down
                 this.selectedShipIndex = Math.min(this.inventoryShips.length - 1, this.selectedShipIndex + 1);
-                
-                // Adjust scroll if selection is out of view
-                const visibleStart = Math.floor(this.inventoryScrollOffset / 80);
-                const visibleEnd = Math.min(visibleStart + 6, this.inventoryShips.length);
-                if (this.selectedShipIndex >= visibleEnd) {
-                    this.inventoryScrollOffset = Math.max(0, (this.selectedShipIndex - 5) * 80);
-                }
-                
                 this.updateShipList();
             }
             
@@ -2252,46 +2303,31 @@ export class Port extends Obstacle {
                 // Confirm ship selection
                 this.changePlayerShip();
             }
-        }
-        
-        // Handle build ships menu input
-        if (this.buildKeys) {
-            if (Phaser.Input.Keyboard.JustDown(this.buildKeys.up)) {
-                // Move selection up
-                this.selectedBuildShipIndex = Math.max(0, this.selectedBuildShipIndex - 1);
+            
+            if (this.scrollKeys && this.scrollKeys.m && Phaser.Input.Keyboard.JustDown(this.scrollKeys.m)) {
+                // Open modification menu for selected ship
+                console.log('M key pressed, selectedShipIndex:', this.selectedShipIndex);
+                console.log('InventoryShips length:', this.inventoryShips?.length);
                 
-                // Adjust scroll if selection is out of view
-                const visibleStart = Math.floor(this.buildShipsScrollOffset / 120);
-                const visibleEnd = Math.min(visibleStart + 4, this.buildableShips.length);
-                if (this.selectedBuildShipIndex < visibleStart) {
-                    this.buildShipsScrollOffset = this.selectedBuildShipIndex * 120;
+                if (this.selectedShipIndex >= 0 && 
+                    this.selectedShipIndex < this.inventoryShips.length && 
+                    this.inventoryShips.length > 0) {
+                    const ship = this.inventoryShips[this.selectedShipIndex];
+                    console.log('Selected ship data:', ship);
+                    
+                    if (ship && ship.shipId) {
+                        console.log('Opening modification menu for ship:', ship.shipName, 'ID:', ship.shipId);
+                        this.shipModificationSystem.openModificationMenu(ship.shipId);
+                    } else {
+                        console.error('Invalid ship data at index', this.selectedShipIndex, ship);
+                    }
+                } else {
+                    console.warn('Invalid ship selection:', this.selectedShipIndex, 'Inventory length:', this.inventoryShips?.length);
                 }
-                
-                this.updateBuildShipsList();
             }
             
-            if (Phaser.Input.Keyboard.JustDown(this.buildKeys.down)) {
-                // Move selection down
-                this.selectedBuildShipIndex = Math.min(this.buildableShips.length - 1, this.selectedBuildShipIndex + 1);
-                
-                // Adjust scroll if selection is out of view
-                const visibleStart = Math.floor(this.buildShipsScrollOffset / 120);
-                const visibleEnd = Math.min(visibleStart + 4, this.buildableShips.length);
-                if (this.selectedBuildShipIndex >= visibleEnd) {
-                    this.buildShipsScrollOffset = Math.max(0, (this.selectedBuildShipIndex - 3) * 120);
-                }
-                
-                this.updateBuildShipsList();
-            }
-            
-            if (Phaser.Input.Keyboard.JustDown(this.buildKeys.enter)) {
-                // Build selected ship
-                this.buildShip();
-            }
-            
-            if (Phaser.Input.Keyboard.JustDown(this.buildKeys.escape)) {
-                // Clean up build menu and return to main menu
-                this.cleanupBuildMenu();
+            if (this.scrollKeys && this.scrollKeys.escape && Phaser.Input.Keyboard.JustDown(this.scrollKeys.escape)) {
+                this.cleanupShipInventory();
                 this.showMenu(); // Return to main menu
             }
         }
@@ -2337,6 +2373,48 @@ export class Port extends Obstacle {
                 // Reset debug mode when exiting buy ships menu
                 this.debugMode = false;
                 console.log('DEBUG MODE DEACTIVATED');
+                this.showMenu(); // Return to main menu
+            }
+        }
+        
+        // Handle build ships menu input
+        if (this.buildKeys) {
+            if (Phaser.Input.Keyboard.JustDown(this.buildKeys.up)) {
+                // Move selection up
+                this.selectedBuildShipIndex = Math.max(0, this.selectedBuildShipIndex - 1);
+                
+                // Adjust scroll if selection is out of view
+                const visibleStart = Math.floor(this.buildShipsScrollOffset / 120);
+                const visibleEnd = Math.min(visibleStart + 4, this.buildableShips.length);
+                if (this.selectedBuildShipIndex < visibleStart) {
+                    this.buildShipsScrollOffset = this.selectedBuildShipIndex * 120;
+                }
+                
+                this.updateBuildShipsList();
+            }
+            
+            if (Phaser.Input.Keyboard.JustDown(this.buildKeys.down)) {
+                // Move selection down
+                this.selectedBuildShipIndex = Math.min(this.buildableShips.length - 1, this.selectedBuildShipIndex + 1);
+                
+                // Adjust scroll if selection is out of view
+                const visibleStart = Math.floor(this.buildShipsScrollOffset / 120);
+                const visibleEnd = Math.min(visibleStart + 4, this.buildableShips.length);
+                if (this.selectedBuildShipIndex >= visibleEnd) {
+                    this.buildShipsScrollOffset = Math.max(0, (this.selectedBuildShipIndex - 3) * 120);
+                }
+                
+                this.updateBuildShipsList();
+            }
+            
+            if (Phaser.Input.Keyboard.JustDown(this.buildKeys.enter)) {
+                // Build the selected ship
+                this.buildShip();
+            }
+            
+            if (Phaser.Input.Keyboard.JustDown(this.buildKeys.escape)) {
+                // Clean up build menu and return to main menu
+                this.cleanupBuildMenu();
                 this.showMenu(); // Return to main menu
             }
         }

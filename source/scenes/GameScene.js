@@ -8,6 +8,7 @@ import EnemySystem from '../systems/EnemySystem.js';
 import CombatSystem from '../systems/CombatSystem.js';
 import AmmoUI from '../systems/AmmoUI.js';
 import StatsUI from '../systems/StatsUI.js';
+import WreckageSystem from '../systems/WreckageSystem.js';
 
 export default class GameScene extends Phaser.Scene {
     constructor() {
@@ -93,8 +94,10 @@ export default class GameScene extends Phaser.Scene {
         this.load.image('Santísima_Trinidad_West', 'assets/Santísima_Trinidad_West.png');
         this.load.image('Orient_East', 'assets/Orient_East.png');
         this.load.image('Orient_West', 'assets/Orient_West.png');
-        this.load.image('Urca_da_Lima_East', 'assets/Urca_da_Lima_East.png');
-        this.load.image('Urca_da_Lima_West', 'assets/Urca_da_Lima_West.png');
+        this.load.image('Urca_de_Lima_East', 'assets/Urca_de_Lima_East.png');
+        this.load.image('Urca_de_Lima_West', 'assets/Urca_de_Lima_West.png');
+        this.load.image('Wreckage', 'assets/Wreckage.png')
+        this.load.image('Wreck_2', 'assets/Wreck_2.png')
         this.load.audio('cannon_shot_1', 'assets/Cannon_Shot_1.mp3');
         this.load.audio('cannon_shot_2', 'assets/Cannon_Shot_2.mp3');
         this.load.audio('rowing', 'assets/Rowing.mp3');
@@ -146,8 +149,14 @@ export default class GameScene extends Phaser.Scene {
         this.playerShip = this.playerSystem.createPlayerShip(
             8000,
             5000,
-            SHIP_TYPES.SLOOP,
+            SHIP_TYPES.GALLEASS,
         );
+
+        // Initialize wreckage system AFTER player ship is created
+        this.wreckageSystem = new WreckageSystem(this);
+        
+        // Set initial player ship reference for collision calculations
+        this.wreckageSystem.setPlayerShip(this.playerShip);
 
         this.islands = [];
         // Caribbean Islands (south-west region)
@@ -334,11 +343,11 @@ export default class GameScene extends Phaser.Scene {
     }
 
     setupCollisions() {
-        // Player ship collisions with islands
-        this.physics.add.collider(this.playerShip, this.islands);
+        // Player ship collisions with islands using enhanced collision handler
+        this.physics.add.overlap(this.playerShip, this.islands, this.handleShipCollision, null, this);
         
-        // Player ship collisions with ports
-        this.physics.add.collider(this.playerShip, this.ports);
+        // Player ship collisions with ports using enhanced collision handler
+        this.physics.add.overlap(this.playerShip, this.ports, this.handleShipCollision, null, this);
         
         
         // Ship-to-ship collisions with size-based physics
@@ -346,28 +355,58 @@ export default class GameScene extends Phaser.Scene {
         
     }
 
-    handleShipCollision(ship1, ship2) {
-        // Determine which ship is larger
-        const ship1Larger = ship1.size >= ship2.size;
-        const largerShip = ship1Larger ? ship1 : ship2;
-        const smallerShip = ship1Larger ? ship2 : ship1;
+    handleShipCollision(obj1, obj2) {
+        // Check if this is a ship-obstacle collision
+        const isShip1 = obj1.constructor.name === 'Ship';
+        const isShip2 = obj2.constructor.name === 'Ship';
+        const isObstacle1 = obj1.constructor.name === 'Obstacle';
+        const isObstacle2 = obj2.constructor.name === 'Obstacle';
+        const isPort1 = obj1.constructor.name === 'Port';
+        const isPort2 = obj2.constructor.name === 'Port';
         
-        // If ships are the same size, both should react (normal physics)
-        if (ship1.size === ship2.size) {
-            // Apply normal collision physics
-            this.physics.world.collide(ship1, ship2);
+        // Handle ship-obstacle collisions
+        if (isShip1 && (isObstacle2 || isPort2)) {
+            // Ship collides with obstacle - obstacle is static, ship bounces off
+            // Static bodies don't need setImmovable() as they're already immovable
+            if (obj1.body && obj2.body) {
+                this.physics.world.collide(obj1, obj2);
+            }
             return;
         }
         
-        // Make larger ship immovable, smaller ship movable
-        largerShip.body.setImmovable(true);
-        smallerShip.body.setImmovable(false);
+        if (isShip2 && (isObstacle1 || isPort1)) {
+            // Ship collides with obstacle - obstacle is static, ship bounces off
+            // Static bodies don't need setImmovable() as they're already immovable
+            if (obj1.body && obj2.body) {
+                this.physics.world.collide(obj1, obj2);
+            }
+            return;
+        }
         
-        // Apply collision
-        this.physics.world.collide(largerShip, smallerShip);
-        
-        // Reset immovable state for larger ship
-        largerShip.body.setImmovable(false);
+        // Handle ship-to-ship collisions (original logic)
+        if (isShip1 && isShip2) {
+            // Determine which ship is larger
+            const ship1Larger = obj1.size >= obj2.size;
+            const largerShip = ship1Larger ? obj1 : obj2;
+            const smallerShip = ship1Larger ? obj2 : obj1;
+            
+            // If ships are the same size, both should react (normal physics)
+            if (obj1.size === obj2.size) {
+                // Apply normal collision physics
+                this.physics.world.collide(obj1, obj2);
+                return;
+            }
+            
+            // Make larger ship immovable, smaller ship movable
+            largerShip.body.setImmovable(true);
+            smallerShip.body.setImmovable(false);
+            
+            // Apply collision
+            this.physics.world.collide(largerShip, smallerShip);
+            
+            // Reset immovable state for larger ship
+            largerShip.body.setImmovable(false);
+        }
     }
 
 
@@ -375,18 +414,21 @@ export default class GameScene extends Phaser.Scene {
     update(time, delta) {
         this.windSystem.update(delta);
         
-        // Update player and enemy systems
+        // Update player and enemy systems (player system will handle sunk state internally)
         this.playerSystem.update(time, delta);
         this.enemySystem.update(time, delta);
         
         // Update combat system
         this.combatSystem.update(delta);
         
-        // Update ammo UI
-        this.ammoUI.update();
+        // Update wreckage system
+        this.wreckageSystem.update(time, delta);
         
-        // Update stats UI
-        this.statsUI.update();
+        // Update ammo UI only if player is not sunk
+        if (!this.wreckageSystem.areControlsDisabled()) {
+            this.ammoUI.update();
+            this.statsUI.update();
+        }
         
         // Handle ambient sounds
         this.updateAmbientSounds(delta);
@@ -394,13 +436,15 @@ export default class GameScene extends Phaser.Scene {
         // Handle background music
         this.updateBackgroundMusic(delta);
         
-        const windEffect = this.windSystem.getWindEffect(this.playerShip.facingAngle);
-        const windBaseBoost = this.playerShip.speed * windEffect.factor * this.playerShip.shipType.windResistance; 
-        const windBoost = Math.min(windBaseBoost, this.playerShip.speed * 0.5); // Cap the boost at 50 for display purposes
-        
-        // Update ports
-        this.ports.forEach(port => port.update());
-        
+        // Update direction arrows only if player is not sunk
+        if (!this.wreckageSystem.areControlsDisabled()) {
+            const windEffect = this.windSystem.getWindEffect(this.playerShip.facingAngle);
+            const windBaseBoost = this.playerShip.speed * windEffect.factor * this.playerShip.shipType.windResistance; 
+            const windBoost = Math.min(windBaseBoost, this.playerShip.speed * 0.5); // Cap the boost at 50 for display purposes
+            
+            // Update ports
+            this.ports.forEach(port => port.update());
+            
 const arrowDistance = this.playerShip.size / 2 + 90;
 const arrowX = this.playerShip.x + Math.cos(this.playerShip.facingAngle) * arrowDistance;
 const arrowY = this.playerShip.y + Math.sin(this.playerShip.facingAngle) * arrowDistance;
@@ -473,8 +517,7 @@ this.directionArrow.fillPath();
             `A/D - Rotate`,
             `Q/E - Select Ammo`,
             `Left Click - Fire Left`,
-            `Middle Click - Fire Right`,
-            `Space - Fire Both`,
+            `Right Click - Fire Right`,
             `R - Cargo`,
             `I - Toggle Info`
         ]);
@@ -498,6 +541,7 @@ this.directionArrow.fillPath();
             arrowSize / 2, arrowSize / 2
         ));
         this.windArrow.restore();
+        }
     }
 
     updateAmbientSounds(delta) {

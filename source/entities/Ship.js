@@ -247,8 +247,15 @@ updateSpriteDirection() {
     
     moveBackward() {
         const angle = this.facingAngle;
-        this.velocityX = Math.cos(angle) * this.speed * -0.5;
-        this.velocityY = Math.sin(angle) * this.speed * -0.5;
+        const windEffect = this.scene.windSystem.getWindEffect(angle);
+        
+        // Reverse wind effect for backward movement - tailwind becomes headwind
+        const reversedWindEffect = { factor: -windEffect.factor };
+        const windBoost = this.speed * reversedWindEffect.factor * this.shipType.windResistance;
+        const backwardSpeed = (this.speed + windBoost) * 0.5; // Backward movement at 50% speed
+
+        this.velocityX = Math.cos(angle) * backwardSpeed * -1;
+        this.velocityY = Math.sin(angle) * backwardSpeed * -1;
     }
     
     rotateLeft() {
@@ -336,6 +343,20 @@ updateSpriteDirection() {
             return { success: false, message: 'Not enough gold!' };
         }
         
+        // Special handling for crew - add to ship's crew instead of cargo
+        if (goodType === 'crew') {
+            const newCrewTotal = this.crew + amount;
+            if (newCrewTotal > this.crewMax) {
+                return { success: false, message: 'Not enough crew space!' };
+            }
+            
+            this.gold -= totalCost;
+            this.crew = newCrewTotal;
+            this.crewHealth = Math.min(this.maxCrewHealth, this.crewHealth + amount);
+            
+            return { success: true, message: `Hired ${amount} crew members for ${totalCost} gold!` };
+        }
+        
         if (!this.canAddCargo(amount)) {
             return { success: false, message: 'Not enough cargo space!' };
         }
@@ -393,19 +414,42 @@ updateSpriteDirection() {
         // Create explosion effect or sinking animation
         console.log(`${this.shipType.name} has been destroyed!`);
         
-        // Clean up hitbox circle
-        if (this.hitboxCircle) {
-            this.hitboxCircle.destroy();
-            this.hitboxCircle = null;
+        // Trigger wreckage system for both player and enemy ships
+        if (this.scene && this.scene.wreckageSystem) {
+            console.log(`🚢 ${this.isPlayer ? 'Player' : 'Enemy'} ship detected, triggering wreckage system...`);
+            this.scene.wreckageSystem.handleShipSunk(this);
+            
+            // Don't destroy the ship immediately - let wreckage system handle it
+            // Clean up hitbox circle
+            if (this.hitboxCircle) {
+                this.hitboxCircle.destroy();
+                this.hitboxCircle = null;
+            }
+            
+            // Remove from physics system but don't destroy sprite yet
+            if (this.body) {
+                this.body.destroy();
+            }
+            
+            // Hide the ship sprite instead of destroying it
+            this.setVisible(false);
+            this.setActive(false);
+        } else {
+            // Fallback: destroy normally if wreckage system not available
+            // Clean up hitbox circle
+            if (this.hitboxCircle) {
+                this.hitboxCircle.destroy();
+                this.hitboxCircle = null;
+            }
+            
+            // Remove from physics system
+            if (this.body) {
+                this.body.destroy();
+            }
+            
+            // Finally destroy the sprite
+            this.destroy();
         }
-        
-        // Remove from physics system
-        if (this.body) {
-            this.body.destroy();
-        }
-        
-        // Finally destroy the sprite
-        this.destroy();
     }
 
     repairShip(repairAmount) {

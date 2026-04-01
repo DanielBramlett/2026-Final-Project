@@ -1,5 +1,6 @@
 import Ship from '../entities/Ship.js';
 import { SHIP_TYPES } from '../constants/shipTypes.js';
+import { ShipModificationSystem } from './ShipModificationSystem.js';
 
 export default class PlayerSystem {
     constructor(scene) {
@@ -43,7 +44,7 @@ export default class PlayerSystem {
         this.scene.input.on('pointerdown', (pointer) => {
             if (pointer.leftButtonDown()) {
                 this.fireCannons('left');
-            } else if (pointer.middleButtonDown()) {
+            } else if (pointer.rightButtonDown()) {
                 this.fireCannons('right');
             }
         });
@@ -52,6 +53,11 @@ export default class PlayerSystem {
     handleInput() {
         // Skip all input if movement is disabled (during naming)
         if (this.movementDisabled) {
+            return;
+        }
+        
+        // Skip all input if player is sunk (wreckage system handles this)
+        if (this.scene && this.scene.wreckageSystem && this.scene.wreckageSystem.areControlsDisabled()) {
             return;
         }
         
@@ -71,11 +77,6 @@ export default class PlayerSystem {
             } else {
                 this.showCargoMenu();
             }
-        }
-        
-        // Handle Space key for firing cannons
-        if (Phaser.Input.Keyboard.JustDown(this.keys.space)) {
-            this.fireCannons('both');
         }
         
         // Handle player movement
@@ -183,9 +184,12 @@ export default class PlayerSystem {
         this.playerShip.hitboxCircle.destroy();
         this.playerShip.destroy();
         
-        // Create new player ship at the spawn position
+        // Create new player ship at spawn position
         this.playerShip = new Ship(this.scene, spawnX, spawnY, newShipType);
         this.playerShip.isPlayer = true; // Mark as player ship for red hitbox
+        
+        // Apply any upgrades to the new ship
+        this.applyShipUpgrades();
         
         console.log('New ship created, physics body exists:', !!this.playerShip.body);
         
@@ -211,9 +215,14 @@ export default class PlayerSystem {
         this.scene.ammoUI.playerShip = this.playerShip;
         this.scene.statsUI.playerShip = this.playerShip;
         
-        // Update collisions with new player ship
-        this.scene.physics.add.collider(this.playerShip, this.scene.islands);
-        this.scene.physics.add.collider(this.playerShip, this.scene.ports);
+        // Update wreckage system to reference the new player ship
+        if (this.scene.wreckageSystem) {
+            this.scene.wreckageSystem.updatePlayerShip(this.playerShip);
+        }
+        
+        // Update collisions with new player ship using enhanced collision handler
+        this.scene.physics.add.overlap(this.playerShip, this.scene.islands, this.scene.handleShipCollision, null, this.scene);
+        this.scene.physics.add.overlap(this.playerShip, this.scene.ports, this.scene.handleShipCollision, null, this.scene);
         this.scene.physics.add.overlap(this.playerShip, this.scene.enemyShips, this.scene.handleShipCollision, null, this.scene);
         
         console.log('Physics colliders added, checking ship body again:', !!this.playerShip.body);
@@ -502,6 +511,35 @@ export default class PlayerSystem {
     getPlayerShip() {
         return this.playerShip;
     }
+    
+    applyShipUpgrades() {
+        // Find the ship modification system from any port (they all share the same instance)
+        let shipModificationSystem = null;
+        if (this.scene.ports && this.scene.ports.length > 0) {
+            shipModificationSystem = this.scene.ports[0].shipModificationSystem;
+        }
+        
+        if (!shipModificationSystem) {
+            console.warn('Ship modification system not found, upgrades not applied');
+            return;
+        }
+        
+        // Find the current ship's ID from named ships
+        const currentShipType = this.playerShip.shipType.name;
+        let currentShipId = null;
+        
+        for (const [shipId, namedShip] of Object.entries(this.playerShip.namedShips)) {
+            if (namedShip.shipKey === currentShipType) {
+                currentShipId = shipId;
+                break;
+            }
+        }
+        
+        if (currentShipId) {
+            shipModificationSystem.applyUpgradesToShip(this.playerShip, currentShipId);
+            console.log(`Applied upgrades to ship: ${currentShipType} (${currentShipId})`);
+        }
+    }
 
     // Expose cargo menu state for info text visibility
     isInfoBoxVisible() {
@@ -586,6 +624,12 @@ export default class PlayerSystem {
     }
 
     fireCannons(side = 'both') {
+        // Prevent firing if player is sunk
+        if (this.scene && this.scene.wreckageSystem && this.scene.wreckageSystem.areControlsDisabled()) {
+            console.log('Cannot fire cannons - player ship is sunk!');
+            return;
+        }
+        
         if (!this.playerShip.canFireCannons()) {
             console.log('No ammo available!');
             return;
