@@ -93,6 +93,9 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
         this.rotationSpeed = 0;
         this.facingAngle = 0; // Track rotation for movement, but not visual rotation
         
+        // Faction assignment
+        this.faction = null; // Will be assigned for enemy ships
+        
         // Combat properties
         this.health = shipType.health || 100;
         this.maxHealth = shipType.maxHealth || 100;
@@ -187,8 +190,19 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
         const width = body.width || this.size * 0.25; // Fallback to default
         const height = body.height || this.size * 0.15; // Fallback to default
         
-        // Draw rectangle (red for player, blue for enemies)
-        const color = this.isPlayer ? 0xFF0000 : 0x0000FF;
+        // Draw rectangle (faction color for player and enemies)
+        let color;
+        if (this.isPlayer && this.scene.factionSystem) {
+            const faction = this.scene.factionSystem.getCurrentFaction();
+            color = faction ? parseInt(faction.color.replace('#', '0x')) : 0xFF0000;
+        } else if (this.isPlayer) {
+            color = 0xFF0000; // Default red for player if no faction system
+        } else if (this.faction) {
+            // Enemy ship with assigned faction
+            color = parseInt(this.faction.color.replace('#', '0x'));
+        } else {
+            color = 0x0000FF; // Default blue for enemies without faction
+        }
         this.hitboxCircle.lineStyle(3, color, 0.8);
         
         if (this.needsOffset === 1) {
@@ -403,6 +417,26 @@ updateSpriteDirection() {
         
         // Check if ship is destroyed
         if (this.health <= 0) {
+            this.destroyShip();
+        }
+        
+        // Check if ship is destroyed due to crew depletion
+        if (this.crew <= 0) {
+            console.log(`${this.shipType.name} has no crew left! Ship is lost!`);
+            this.destroyShip();
+        }
+    }
+
+    // New method for boarding crew damage (direct crew reduction)
+    takeBoardingDamage(crewCasualties) {
+        this.crewHealth = Math.max(0, this.crewHealth - crewCasualties);
+        this.crew = Math.max(0, this.crew - crewCasualties);
+        
+        console.log(`${this.shipType.name} took ${crewCasualties} crew casualties from boarding! Remaining crew: ${this.crew}`);
+        
+        // Check if ship is destroyed due to crew depletion
+        if (this.crew <= 0) {
+            console.log(`${this.shipType.name} has no crew left! Ship is lost!`);
             this.destroyShip();
         }
     }

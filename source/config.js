@@ -1,4 +1,5 @@
 import GameScene from "./scenes/GameScene.js";
+import StartScene from "./scenes/StartScene.js";
 
 export const gameConfig = {
   type: Phaser.AUTO,
@@ -16,5 +17,5 @@ export const gameConfig = {
       gravity: { y: 0 },
     },
   },
-  scene: GameScene,
+  scene: [StartScene, GameScene],
 };

@@ -9,6 +9,9 @@ import CombatSystem from '../systems/CombatSystem.js';
 import AmmoUI from '../systems/AmmoUI.js';
 import StatsUI from '../systems/StatsUI.js';
 import WreckageSystem from '../systems/WreckageSystem.js';
+import FactionSystem from '../systems/FactionSystem.js';
+import TradeRunSystem from '../systems/TradeRunSystem.js';
+import { ShipModificationSystem } from '../systems/ShipModificationSystem.js';
 
 export default class GameScene extends Phaser.Scene {
     constructor() {
@@ -104,7 +107,7 @@ export default class GameScene extends Phaser.Scene {
         this.load.audio('sails', 'assets/Sails.mp3');
         this.load.audio('wood_breaking', 'assets/Wood_Breaking.mp3');
         this.load.audio('anchor', 'assets/Anchor.mp3');
-        this.load.audio('Ship_Creaking', 'assets/Ship_Creaking.mp3')
+        this.load.audio('Ship_Creaking', 'assets/Ship_Creaking.mp3');
         //Songs
         this.load.audio('Raise_the_Sails', 'assets/sergepavkinmusic-raise-the-sails-152124.mp3');
         this.load.audio('Pirate_Adventure', 'assets/ebunny-pirate-adventure-361663.mp3');
@@ -128,7 +131,6 @@ export default class GameScene extends Phaser.Scene {
             'Pirate_Adventure': 194, // 3:14 = 194 seconds  
             'Epic_Pirate_Adventure': 137 // 2:17 = 137 seconds
         };
-        this.currentSongIndex = 0;
         this.songTimer = 0;
         this.songDelay = 60000; // 1 minute between songs
         this.currentBackgroundMusic = null;
@@ -138,22 +140,46 @@ export default class GameScene extends Phaser.Scene {
 
         this.windSystem = new WindSystem(this, 20000); // Change wind every 20 seconds
 
+        // Initialize faction system (receive from StartScene or create default)
+        if (this.registry.get('factionSystem')) {
+            this.factionSystem = this.registry.get('factionSystem');
+            this.registry.remove('factionSystem');
+        } else {
+            this.factionSystem = new FactionSystem(this);
+            // Default to English for backward compatibility
+            this.factionSystem.setFaction('ENGLISH');
+        }
+
+        // Initialize ship modification system (single shared instance)
+        this.shipModificationSystem = new ShipModificationSystem(this);
+        
         // Initialize player and enemy systems
         this.playerSystem = new PlayerSystem(this);
         this.enemySystem = new EnemySystem(this);
         
         // Initialize combat system
         this.combatSystem = new CombatSystem(this);
+        
+        // Apply English reload speed buff if selected
+        if (this.factionSystem.getCurrentFaction()?.name === 'English') {
+            const baseFireRate = 1000; // Base fire rate in milliseconds
+            const newFireRate = this.factionSystem.getModifiedReloadTime(baseFireRate);
+            this.combatSystem.fireRate = newFireRate;
+            console.log(`English reload buff applied in GameScene: ${baseFireRate}ms -> ${newFireRate}ms`);
+        }
 
         // Create player ship
         this.playerShip = this.playerSystem.createPlayerShip(
             8000,
             5000,
-            SHIP_TYPES.GALLEASS,
+            SHIP_TYPES.SLOOP,
         );
 
         // Initialize wreckage system AFTER player ship is created
         this.wreckageSystem = new WreckageSystem(this);
+        
+        // Initialize trade run system
+        this.tradeRunSystem = new TradeRunSystem(this, SHIP_TYPES);
         
         // Set initial player ship reference for collision calculations
         this.wreckageSystem.setPlayerShip(this.playerShip);
@@ -222,60 +248,64 @@ export default class GameScene extends Phaser.Scene {
         this.ports = [];
         
         // Caribbean Ports (south-west region)
-        this.ports.push(new Port(this, 1800, 7200, 250, 200, 'Port', 'Port-au-Prince', 'caribbean'));
-        this.ports.push(new Port(this, 2600, 7800, 250, 200, 'Port', 'Santo Domingo', 'caribbean'));
-        this.ports.push(new Port(this, 1400, 8200, 250, 200, 'Port', 'Cartagena', 'caribbean'));
+        this.ports.push(new Port(this, 1800, 7200, 250, 200, 'Port', 'Port-au-Prince', 'caribbean', SHIP_TYPES));
+        this.ports.push(new Port(this, 2600, 7800, 250, 200, 'Port', 'Santo Domingo', 'caribbean', SHIP_TYPES));
+        this.ports.push(new Port(this, 1400, 8200, 250, 200, 'Port', 'Cartagena', 'caribbean', SHIP_TYPES));
         
         // Bermuda Triangle Ports (north-west region)
-        this.ports.push(new Port(this, 2200, 1800, 250, 200, 'Port', 'Bermuda', 'bermuda'));
-        this.ports.push(new Port(this, 3400, 1400, 250, 200, 'Port', 'St. George', 'bermuda'));
+        this.ports.push(new Port(this, 2200, 1800, 250, 200, 'Port', 'Bermuda', 'bermuda', SHIP_TYPES));
+        this.ports.push(new Port(this, 3400, 1400, 250, 200, 'Port', 'St. George', 'bermuda', SHIP_TYPES));
         
         // Bahamas Ports (central-west)
-        this.ports.push(new Port(this, 4600, 4200, 250, 200, 'Port', 'Nassau', 'bahamas'));
-        this.ports.push(new Port(this, 5200, 3800, 250, 200, 'Port', 'Freeport', 'bahamas'));
+        this.ports.push(new Port(this, 4600, 4200, 250, 200, 'Port', 'Nassau', 'bahamas', SHIP_TYPES));
+        this.ports.push(new Port(this, 5200, 3800, 250, 200, 'Port', 'Freeport', 'bahamas', SHIP_TYPES));
         
         // Greater Antilles Ports (central region)
-        this.ports.push(new Port(this, 7200, 5200, 250, 200, 'Port', 'Kingston', 'greater_antilles'));
-        this.ports.push(new Port(this, 8200, 5800, 250, 200, 'Port', 'Santiago', 'greater_antilles'));
-        this.ports.push(new Port(this, 7800, 6600, 250, 200, 'Port', 'Port Royal', 'greater_antilles'));
+        this.ports.push(new Port(this, 7200, 5200, 250, 200, 'Port', 'Kingston', 'greater_antilles', SHIP_TYPES));
+        this.ports.push(new Port(this, 8200, 5800, 250, 200, 'Port', 'Santiago', 'greater_antilles', SHIP_TYPES));
+        this.ports.push(new Port(this, 7800, 6600, 250, 200, 'Port', 'Port Royal', 'greater_antilles', SHIP_TYPES));
         
         // Leeward Islands Ports (north-central)
-        this.ports.push(new Port(this, 9200, 3200, 250, 200, 'Port', 'Antigua', 'leeward_islands'));
-        this.ports.push(new Port(this, 9800, 3800, 250, 200, 'Port', 'St. Kitts', 'leeward_islands'));
+        this.ports.push(new Port(this, 9200, 3200, 250, 200, 'Port', 'Antigua', 'leeward_islands', SHIP_TYPES));
+        this.ports.push(new Port(this, 9800, 3800, 250, 200, 'Port', 'St. Kitts', 'leeward_islands', SHIP_TYPES));
         
         // Windward Islands Ports (north-east)
-        this.ports.push(new Port(this, 11800, 2600, 250, 200, 'Port', 'Martinique', 'windward_islands'));
-        this.ports.push(new Port(this, 12600, 3000, 250, 200, 'Port', 'St. Lucia', 'windward_islands'));
-        this.ports.push(new Port(this, 13200, 2200, 250, 200, 'Port', 'Barbados', 'windward_islands'));
+        this.ports.push(new Port(this, 11800, 2600, 250, 200, 'Port', 'Martinique', 'windward_islands', SHIP_TYPES));
+        this.ports.push(new Port(this, 12600, 3000, 250, 200, 'Port', 'St. Lucia', 'windward_islands', SHIP_TYPES));
+        this.ports.push(new Port(this, 13200, 2200, 250, 200, 'Port', 'Barbados', 'windward_islands', SHIP_TYPES));
         
         // South American Coast Ports (south-east)
-        this.ports.push(new Port(this, 14200, 8200, 250, 200, 'Port', 'Maracaibo', 'south_america'));
-        this.ports.push(new Port(this, 15200, 7800, 250, 200, 'Port', 'Caracas', 'south_america'));
+        this.ports.push(new Port(this, 14200, 8200, 250, 200, 'Port', 'Maracaibo', 'south_america', SHIP_TYPES));
+        this.ports.push(new Port(this, 15200, 7800, 250, 200, 'Port', 'Caracas', 'south_america', SHIP_TYPES));
         
         // Central American Coast Ports (south)
-        this.ports.push(new Port(this, 10200, 9200, 250, 200, 'Port', 'Veracruz', 'central_america'));
-        this.ports.push(new Port(this, 11200, 9600, 250, 200, 'Port', 'Campeche', 'central_america'));
+        this.ports.push(new Port(this, 10200, 9200, 250, 200, 'Port', 'Veracruz', 'central_america', SHIP_TYPES));
+        this.ports.push(new Port(this, 11200, 9600, 250, 200, 'Port', 'Campeche', 'central_america', SHIP_TYPES));
         
         // Florida Ports (north)
-        this.ports.push(new Port(this, 6200, 1000, 250, 200, 'Port', 'Key West', 'florida'));
-        this.ports.push(new Port(this, 6800, 1400, 250, 200, 'Port', 'Tampa', 'florida'));
+        this.ports.push(new Port(this, 6200, 1000, 250, 200, 'Port', 'Key West', 'florida', SHIP_TYPES));
+        this.ports.push(new Port(this, 6800, 1400, 250, 200, 'Port', 'Tampa', 'florida', SHIP_TYPES));
         
         // Yucatan Ports (west)
-        this.ports.push(new Port(this, 3800, 5800, 250, 200, 'Port', 'Merida', 'yucatan'));
+        this.ports.push(new Port(this, 3800, 5800, 250, 200, 'Port', 'Merida', 'yucatan', SHIP_TYPES));
         
         // Lesser Antilles Ports (far east)
-        this.ports.push(new Port(this, 17200, 4200, 250, 200, 'Port', 'Trinidad', 'lesser_antilles'));
-        this.ports.push(new Port(this, 16600, 5200, 250, 200, 'Port', 'Grenada', 'lesser_antilles'));
+        this.ports.push(new Port(this, 17200, 4200, 250, 200, 'Port', 'Trinidad', 'lesser_antilles', SHIP_TYPES));
+        this.ports.push(new Port(this, 16600, 5200, 250, 200, 'Port', 'Grenada', 'lesser_antilles', SHIP_TYPES));
         
         // Isolated Island Ports
-        this.ports.push(new Port(this, 13400, 7200, 250, 200, 'Port', 'Curacao', 'lesser_antilles'));
-        this.ports.push(new Port(this, 15800, 2600, 250, 200, 'Port', 'Aruba', 'lesser_antilles'));
-        this.ports.push(new Port(this, 8600, 1800, 250, 200, 'Port', 'Turks Islands', 'bermuda'));
+        this.ports.push(new Port(this, 13400, 7200, 250, 200, 'Port', 'Curacao', 'lesser_antilles', SHIP_TYPES));
+        this.ports.push(new Port(this, 15800, 2600, 250, 200, 'Port', 'Aruba', 'lesser_antilles', SHIP_TYPES));
+        this.ports.push(new Port(this, 8600, 1800, 250, 200, 'Port', 'Turks Islands', 'bermuda', SHIP_TYPES));
+        
+        // Set the shared ship modification system for all ports
+        this.ports.forEach(port => {
+            port.shipModificationSystem = this.shipModificationSystem;
+        });
 
         // Create some enemy ships after islands are created
         this.enemyShips = this.enemySystem.createEnemyShips();
-        
-        // Initialize ammo UI after player ship is created
+
         this.ammoUI = new AmmoUI(this, this.playerShip);
         
         // Initialize stats UI after player ship is created
@@ -423,6 +453,9 @@ export default class GameScene extends Phaser.Scene {
         
         // Update wreckage system
         this.wreckageSystem.update(time, delta);
+        
+        // Update trade run system
+        this.tradeRunSystem.update();
         
         // Update ammo UI only if player is not sunk
         if (!this.wreckageSystem.areControlsDisabled()) {
@@ -576,8 +609,9 @@ this.directionArrow.fillPath();
                 this.currentBackgroundMusic.stop();
             }
             
-            // Play next song
-            const songKey = this.songs[this.currentSongIndex];
+            // Play random song
+            const randomIndex = Math.floor(Math.random() * this.songs.length);
+            const songKey = this.songs[randomIndex];
             this.currentBackgroundMusic = this.sound.play(songKey, { 
                 loop: false,
                 volume: 0.3 // Adjust volume as needed
@@ -597,9 +631,6 @@ this.directionArrow.fillPath();
                 this.songTimer = (fallbackDuration * 1000) + this.songDelay;
                 console.log(`Playing ${songKey}, duration not in map, using 3min fallback, next song in: ${this.songTimer/1000}s`);
             }
-            
-            // Move to next song
-            this.currentSongIndex = (this.currentSongIndex + 1) % this.songs.length;
         }
     }
 }

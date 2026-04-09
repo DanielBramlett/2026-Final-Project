@@ -1,3 +1,5 @@
+import { SHIP_TYPES } from '../constants/shipTypes.js';
+
 export default class CombatSystem {
     constructor(scene) {
         this.scene = scene;
@@ -7,6 +9,348 @@ export default class CombatSystem {
         this.selectedAmmo = 'cannonballs'; // Default selected ammo
         this.individualCannonSounds = true; // Enable individual cannon sounds
         this.soundDelayPerCannon = 50; // Delay between individual cannon sounds in milliseconds
+        
+        // Boarding system
+        this.boardingRange = 100; // Distance required for boarding
+        this.boardingDuration = 3000; // Duration of boarding combat in milliseconds
+        this.boardingCooldown = {}; // Track cooldown for each ship
+        this.boardingCooldownTime = 5000; // 5 seconds cooldown between boarding attempts
+    }
+
+    setSelectedAmmo(ammoType) {
+        this.selectedAmmo = ammoType;
+    }
+
+    getSelectedAmmo() {
+        return this.selectedAmmo;
+    }
+
+    fireCannon(ship, side = 'both') {
+        // Existing cannon firing code remains unchanged
+        const currentTime = Date.now();
+        const shipId = ship.isPlayer ? 'player' : ship.id;
+        
+        console.log(`🚢 Attempting to fire ${side} side. Selected ammo: ${this.selectedAmmo}, Available: ${ship.tradeGoods[this.selectedAmmo] || 0}`);
+        
+        if (this.lastFireTime[shipId] && currentTime - this.lastFireTime[shipId] < this.fireRate) {
+            console.log(`⏱️ Cannons on cooldown for ${shipId}`);
+            return false;
+        }
+
+        const cannonsPerSide = Math.floor(ship.cannons / 2);
+        const hasExtraCannon = ship.cannons % 2 === 1;
+        const leftCannons = side === 'left' || side === 'both' ? cannonsPerSide : 0;
+        const rightCannons = side === 'right' || side === 'both' ? cannonsPerSide : 0;
+        
+        let extraCannonSide = null;
+        if (hasExtraCannon && side === 'both') {
+            extraCannonSide = Math.random() < 0.5 ? 'left' : 'right';
+        } else if (hasExtraCannon && side === 'left') {
+            extraCannonSide = 'left';
+        } else if (hasExtraCannon && side === 'right') {
+            extraCannonSide = 'right';
+        }
+
+        console.log(`🎯 Firing ${leftCannons} left cannons, ${rightCannons} right cannons`);
+
+        if (ship.tradeGoods[this.selectedAmmo] > 0) {
+            ship.tradeGoods[this.selectedAmmo]--;
+            this.createProjectiles(ship, this.selectedAmmo, leftCannons, rightCannons, extraCannonSide);
+            this.lastFireTime[shipId] = currentTime;
+            console.log(`✅ Successfully fired ${this.selectedAmmo}! Remaining: ${ship.tradeGoods[this.selectedAmmo]}`);
+            return true;
+        }
+
+        console.log(`❌ No ${this.selectedAmmo} available!`);
+        return false;
+    }
+
+    // Boarding system methods
+    canBoardShip(attacker, target) {
+        const currentTime = Date.now();
+        const attackerId = attacker.isPlayer ? 'player' : attacker.id;
+        
+        if (this.boardingCooldown[attackerId] && currentTime - this.boardingCooldown[attackerId] < this.boardingCooldownTime) {
+            console.log(`⏱️ Boarding on cooldown for ${attackerId}`);
+            return false;
+        }
+        
+        const distance = Phaser.Math.Distance.Between(attacker.x, attacker.y, target.x, target.y);
+        const requiredDistance = (attacker.size / 2) + (target.size / 2) + this.boardingRange;
+        
+        if (distance > requiredDistance) {
+            console.log(`📏 Too far to board: ${distance}px > ${requiredDistance}px`);
+            return false;
+        }
+        
+        if (target.health <= 0) {
+            console.log(`❌ Cannot board destroyed ship`);
+            return false;
+        }
+        
+        return true;
+    }
+
+    initiateBoarding(attacker, target) {
+        if (!this.canBoardShip(attacker, target)) {
+            return false;
+        }
+        
+        const attackerId = attacker.isPlayer ? 'player' : attacker.id;
+        this.boardingCooldown[attackerId] = Date.now();
+        
+        console.log(`⚔️ ${attacker.isPlayer ? 'PLAYER' : 'ENEMY'} initiating boarding on ${target.shipType.name}!`);
+        
+        const boardingMessage = attacker.isPlayer ? 
+            "BOARDING ACTION! Crew combat in progress..." : 
+            "ENEMY BOARDING! Defend the ship!";
+            
+        this.showBoardingMessage(boardingMessage, attacker.isPlayer);
+        this.scene.sound.play('wood_breaking');
+        
+        if (attacker.isPlayer) {
+            this.scene.playerSystem.movementDisabled = true;
+        }
+        
+        setTimeout(() => {
+            this.resolveBoarding(attacker, target);
+        }, this.boardingDuration);
+        
+        return true;
+    }
+
+    resolveBoarding(attacker, target) {
+        const attackerCrewStrength = this.calculateCrewStrength(attacker);
+        const targetCrewStrength = this.calculateCrewStrength(target);
+        
+        console.log(`⚔️ Boarding combat: ${attackerCrewStrength} vs ${targetCrewStrength}`);
+        
+        const attackerRoll = attackerCrewStrength * (0.8 + Math.random() * 0.4);
+        const targetRoll = targetCrewStrength * (0.8 + Math.random() * 0.4);
+        
+        const attackerWins = attackerRoll > targetRoll;
+        
+        if (attackerWins) {
+            this.handleBoardingSuccess(attacker, target);
+        } else {
+            this.handleBoardingFailure(attacker, target);
+        }
+        
+        if (attacker.isPlayer) {
+            this.scene.playerSystem.movementDisabled = false;
+        }
+    }
+
+    calculateCrewStrength(ship) {
+        let strength = ship.crew;
+        const healthRatio = ship.crewHealth / ship.maxCrewHealth;
+        strength *= (0.5 + healthRatio * 0.5);
+        strength *= (1 + ship.size / 1000);
+        return Math.floor(strength);
+    }
+
+    handleBoardingSuccess(attacker, target) {
+        console.log(`🎉 ${attacker.isPlayer ? 'PLAYER' : 'ENEMY'} won the boarding action!`);
+        
+        if (attacker.isPlayer) {
+            const goldStolen = Math.floor(target.gold * 0.3);
+            attacker.gold += goldStolen;
+            
+            const stolenGoods = {};
+            Object.entries(target.tradeGoods).forEach(([goodType, amount]) => {
+                if (amount > 0 && goodType !== 'crew') {
+                    const stolenAmount = Math.floor(amount * 0.2);
+                    if (stolenAmount > 0 && attacker.canAddCargo(stolenAmount)) {
+                        attacker.tradeGoods[goodType] += stolenAmount;
+                        target.tradeGoods[goodType] -= stolenAmount;
+                        stolenGoods[goodType] = stolenAmount;
+                    }
+                }
+            });
+            
+            let boardingDamage = 15 + Math.floor(Math.random() * 10);
+            
+            // Apply faction boarding damage buff
+            if (this.scene.factionSystem) {
+                if (attacker.isPlayer) {
+                    // Player boarding - use player's faction
+                    boardingDamage = this.scene.factionSystem.getModifiedBoardingDamage(boardingDamage);
+                    console.log(`Player boarding damage buff applied: ${15 + Math.floor(Math.random() * 10)} -> ${boardingDamage}`);
+                } else if (attacker.faction) {
+                    // Enemy boarding - use enemy's faction
+                    boardingDamage = this.scene.factionSystem.getModifiedBoardingDamageForFaction(boardingDamage, attacker.faction);
+                    console.log(`Enemy boarding damage buff applied (${attacker.faction.displayName}): ${15 + Math.floor(Math.random() * 10)} -> ${boardingDamage}`);
+                }
+            }
+            
+            target.takeBoardingDamage(boardingDamage);
+            
+            if (target.crew <= 0) {
+                this.captureEnemyShip(attacker, target);
+            }
+            
+            let message = `Boarding Successful! Stole ${goldStolen} gold!`;
+            if (Object.keys(stolenGoods).length > 0) {
+                message += ` Also stole: ${Object.entries(stolenGoods).map(([good, amount]) => `${amount} ${good}`).join(', ')}`;
+            }
+            message += ` Enemy crew took ${boardingDamage} casualties!`;
+            this.showBoardingMessage(message, true);
+            
+        } else {
+            const goldLost = Math.floor(target.gold * 0.2);
+            target.gold -= goldLost;
+            
+            let boardingDamage = 12 + Math.floor(Math.random() * 8);
+            
+            // Apply faction boarding damage buff
+            if (this.scene.factionSystem) {
+                if (attacker.isPlayer) {
+                    // Player boarding - use player's faction
+                    boardingDamage = this.scene.factionSystem.getModifiedBoardingDamage(boardingDamage);
+                    console.log(`Player boarding damage buff applied (enemy): ${12 + Math.floor(Math.random() * 8)} -> ${boardingDamage}`);
+                } else if (attacker.faction) {
+                    // Enemy boarding - use enemy's faction
+                    boardingDamage = this.scene.factionSystem.getModifiedBoardingDamageForFaction(boardingDamage, attacker.faction);
+                    console.log(`Enemy boarding damage buff applied (${attacker.faction.displayName}): ${12 + Math.floor(Math.random() * 8)} -> ${boardingDamage}`);
+                }
+            }
+            
+            target.takeBoardingDamage(boardingDamage);
+            
+            this.showBoardingMessage(`Boarding Failed! Lost ${goldLost} gold and ${boardingDamage} crew!`, false);
+        }
+    }
+
+    handleBoardingFailure(attacker, target) {
+        console.log(`💀 ${attacker.isPlayer ? 'PLAYER' : 'ENEMY'} lost the boarding action!`);
+        
+        if (attacker.isPlayer) {
+            attacker.takeBoardingDamage(20);
+            this.showBoardingMessage("Boarding Failed! Lost crew in the attempt!", true);
+        } else {
+            attacker.takeBoardingDamage(15);
+            this.showBoardingMessage("Enemy boarding repelled!", false);
+        }
+    }
+
+    captureEnemyShip(player, enemyShip) {
+        console.log(`🏴‍☠️ PLAYER CAPTURED ${enemyShip.shipType.name}!`);
+        console.log('Player ownedShips before capture:', player.ownedShips);
+        console.log('Player namedShips before capture:', player.namedShips);
+        
+        // Get the correct ship type key (uppercase) from SHIP_TYPES
+        const shipTypeKey = this.findShipTypeKey(enemyShip.shipType.name);
+        console.log('Ship type key found:', shipTypeKey);
+        
+        if (!player.ownedShips.includes(shipTypeKey)) {
+            player.ownedShips.push(shipTypeKey);
+            console.log(`Added ${shipTypeKey} to player's owned ships!`);
+        }
+        
+        const shipId = player.addNamedShip(shipTypeKey, `Captured ${enemyShip.shipType.name}`);
+        console.log('Created named ship with ID:', shipId);
+        console.log('Player ownedShips after capture:', player.ownedShips);
+        console.log('Player namedShips after capture:', player.namedShips);
+        
+        // Force refresh of any open port menus
+        if (this.scene.ports) {
+            this.scene.ports.forEach(port => {
+                if (port.menuActive && port.currentMenu === 'shipInventory') {
+                    console.log('Refreshing port menu to show captured ship');
+                    port.hideMenu();
+                    setTimeout(() => {
+                        port.showShipInventory();
+                    }, 100);
+                }
+            });
+        }
+        
+        const remainingGold = enemyShip.gold;
+        player.gold += remainingGold;
+        enemyShip.gold = 0;
+        
+        const transferredGoods = {};
+        Object.entries(enemyShip.tradeGoods).forEach(([goodType, amount]) => {
+            if (amount > 0 && goodType !== 'crew') {
+                if (player.canAddCargo(amount)) {
+                    player.tradeGoods[goodType] += amount;
+                    transferredGoods[goodType] = amount;
+                    enemyShip.tradeGoods[goodType] = 0;
+                } else {
+                    const spaceAvailable = player.getAvailableCargoSpace();
+                    const transferAmount = Math.min(amount, spaceAvailable);
+                    if (transferAmount > 0) {
+                        player.tradeGoods[goodType] += transferAmount;
+                        transferredGoods[goodType] = transferAmount;
+                        enemyShip.tradeGoods[goodType] -= transferAmount;
+                    }
+                }
+            }
+        });
+        
+        let captureMessage = `🏴‍☠️ SHIP CAPTURED! ${enemyShip.shipType.name} is now yours!`;
+        captureMessage += `\nGained ${remainingGold} gold and all remaining cargo!`;
+        
+        if (Object.keys(transferredGoods).length > 0) {
+            captureMessage += `\nTransferred: ${Object.entries(transferredGoods).map(([good, amount]) => `${amount} ${good}`).join(', ')}`;
+        }
+        
+        this.showBoardingMessage(captureMessage, true);
+        this.removeCapturedEnemy(enemyShip);
+        this.scene.sound.play('wood_breaking');
+    }
+
+    findShipTypeKey(shipName) {
+        // Find the correct SHIP_TYPES key by matching the name property
+        for (const [key, shipType] of Object.entries(SHIP_TYPES)) {
+            if (shipType.name === shipName) {
+                return key; // Return the uppercase key (e.g., 'SLOOP')
+            }
+        }
+        console.warn(`Ship type key not found for ship name: ${shipName}`);
+        return shipName.toUpperCase(); // Fallback to uppercase
+    }
+
+    removeCapturedEnemy(enemyShip) {
+        const index = this.scene.enemyShips.indexOf(enemyShip);
+        if (index > -1) {
+            this.scene.enemyShips.splice(index, 1);
+        }
+        
+        if (enemyShip.body) {
+            enemyShip.body.destroy();
+        }
+        
+        if (enemyShip.hitboxCircle) {
+            enemyShip.hitboxCircle.destroy();
+        }
+        
+        enemyShip.destroy();
+        console.log(`Removed captured ${enemyShip.shipType.name} from the game`);
+    }
+
+    showBoardingMessage(message, isPlayer = false) {
+        const messageText = this.scene.add.text(
+            this.scene.cameras.main.width / 2,
+            this.scene.cameras.main.height / 2,
+            message,
+            {
+                fontSize: '32px',
+                fill: isPlayer ? '#00FF00' : '#FF0000',
+                backgroundColor: '#000000',
+                padding: { x: 20, y: 10 },
+                align: 'center'
+            }
+        );
+        messageText.setScrollFactor(0);
+        messageText.setDepth(2000);
+        messageText.setOrigin(0.5, 0.5);
+        
+        setTimeout(() => {
+            if (messageText && messageText.active) {
+                messageText.destroy();
+            }
+        }, 3000);
     }
 
     setSelectedAmmo(ammoType) {
@@ -68,8 +412,21 @@ export default class CombatSystem {
 
     createProjectiles(ship, ammoType, leftCannons, rightCannons, extraCannonSide = null) {
         const projectileSpeed = this.getProjectileSpeed(ammoType);
-        const projectileDamage = this.getProjectileDamage(ammoType);
+        let projectileDamage = this.getProjectileDamage(ammoType);
         const projectileColor = this.getProjectileColor(ammoType);
+        
+        // Apply faction damage bonus
+        if (this.scene.factionSystem) {
+            if (ship.isPlayer) {
+                // Player ship - use player's faction
+                projectileDamage = this.scene.factionSystem.getModifiedDamage(projectileDamage);
+                console.log(`Player faction damage bonus applied: ${this.getProjectileDamage(ammoType)} -> ${projectileDamage}`);
+            } else if (ship.faction) {
+                // Enemy ship - use enemy's faction
+                projectileDamage = this.scene.factionSystem.getModifiedDamageForFaction(projectileDamage, ship.faction);
+                console.log(`Enemy faction damage bonus applied (${ship.faction.displayName}): ${this.getProjectileDamage(ammoType)} -> ${projectileDamage}`);
+            }
+        }
 
         // Calculate wave size (cannons per wave, minimum 1)
         const totalRegularCannons = leftCannons + rightCannons;
@@ -345,7 +702,7 @@ export default class CombatSystem {
             case 'chainshot':
                 return Math.floor(baseDamage * 0.7); // Less damage but affects sails/turning
             case 'grapeshot':
-                return Math.floor(baseDamage * 0.5); // Less damage but affects crew
+                return Math.floor(baseDamage * 0.7); // Less damage but affects crew
             default:
                 return baseDamage;
         }
@@ -367,13 +724,13 @@ export default class CombatSystem {
     getProjectileDamage(ammoType) {
         switch (ammoType) {
             case 'cannonballs':
-                return 20;
+                return 8;
             case 'chainshot':
-                return 14;
+                return 6;
             case 'grapeshot':
-                return 10;
+                return 5;
             default:
-                return 20;
+                return 4;
         }
     }
 

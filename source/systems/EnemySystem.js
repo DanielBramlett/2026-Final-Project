@@ -10,14 +10,14 @@ export default class EnemySystem {
         this.detectionRange = 1200; // Distance at which enemies detect targets (increased from 800)
         this.fireRange = 600; // Maximum distance to fire cannons
         this.preferredDistance = 400; // Preferred distance to maintain from target
-        this.fireRate = 2000; // Minimum time between shots (ms)
+        this.fireRate = 1000; // Minimum time between shots (ms)
         this.lastFireTime = {}; // Track last fire time for each enemy
         this.angleThreshold = Math.PI / 6; // 30 degrees - acceptable angle to fire
         
         // Obstacle avoidance configuration
         this.obstacleDetectionRange = 500; // Range to detect obstacles (increased from 300)
-        this.avoidanceStrength = 0.9; // Strength of avoidance steering (increased from 0.7)
-        this.obstacleCheckAngles = 12; // Number of angles to check for obstacles (increased from 9)
+        this.avoidanceStrength = 0.8; // Strength of avoidance steering (increased from 0.7)
+        this.obstacleCheckAngles = 16; // Number of angles to check for obstacles (increased from 9)
     }
 
     createEnemyShips() {
@@ -118,10 +118,34 @@ export default class EnemySystem {
         // Create the enemy ship at the valid position
         const enemyShip = new Ship(this.scene, x, y, shipType);
         
+        // Assign random faction to enemy ship
+        if (this.scene.factionSystem) {
+            enemyShip.faction = this.scene.factionSystem.assignRandomFaction();
+            console.log(`Enemy ship assigned faction: ${enemyShip.faction.displayName}`);
+            
+            // Apply faction buffs to enemy ship using their assigned faction
+            const modifiedSpeed = this.scene.factionSystem.getModifiedSpeedForFaction(shipType.speed, enemyShip.faction);
+            const modifiedTurnSpeed = this.scene.factionSystem.getModifiedTurnSpeedForFaction(shipType.turnSpeed, enemyShip.faction);
+            
+            enemyShip.speed = modifiedSpeed;
+            enemyShip.turnSpeed = modifiedTurnSpeed;
+            
+            console.log(`Applied ${enemyShip.faction.displayName} faction buffs to enemy ship: speed ${shipType.speed} -> ${modifiedSpeed}, turnSpeed ${shipType.turnSpeed} -> ${modifiedTurnSpeed}`);
+        }
+        
         // Initialize enemy ship with ammo
         enemyShip.tradeGoods.cannonballs = 50;
         enemyShip.tradeGoods.chainshot = 20;
         enemyShip.tradeGoods.grapeshot = 30;
+        
+        // Generate random gold capped at maxCargo
+        const maxCargo = shipType.cargoMax;
+        const minGold = Math.floor(maxCargo * 0.1); // 10% of max cargo as minimum
+        const maxGold = maxCargo; // Cap at max cargo
+        const randomGold = Math.floor(Math.random() * (maxGold - minGold + 1)) + minGold;
+        enemyShip.gold = randomGold;
+        
+        console.log(`Enemy ${enemyShip.shipType.name} spawned with ${enemyShip.gold} gold (cargo capacity: ${maxCargo})`);
         
         // Mark as enemy ship
         enemyShip.isPlayer = false;
@@ -136,26 +160,40 @@ export default class EnemySystem {
         
         // Check player ship
         if (this.scene.playerShip && !this.scene.playerShip.destroyed) {
-            const dx = this.scene.playerShip.x - enemyShip.x;
-            const dy = this.scene.playerShip.y - enemyShip.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            if (distance < closestDistance && distance <= this.detectionRange) {
-                closestDistance = distance;
-                closestTarget = this.scene.playerShip;
+            // Skip if same faction (faction-based targeting)
+            if (!this.scene.factionSystem || !this.scene.factionSystem.areSameFaction(enemyShip, this.scene.playerShip)) {
+                const dx = this.scene.playerShip.x - enemyShip.x;
+                const dy = this.scene.playerShip.y - enemyShip.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < closestDistance && distance <= this.detectionRange) {
+                    closestDistance = distance;
+                    closestTarget = this.scene.playerShip;
+                }
+            } else {
+                // Same faction - skip targeting
+                const enemyFaction = this.scene.factionSystem.getShipFaction(enemyShip);
+                const playerFaction = this.scene.factionSystem.getShipFaction(this.scene.playerShip);
             }
         }
         
         // Check other enemy ships (for potential friendly fire or targeting)
         for (const otherEnemy of this.enemyShips) {
             if (otherEnemy !== enemyShip && !otherEnemy.destroyed) {
-                const dx = otherEnemy.x - enemyShip.x;
-                const dy = otherEnemy.y - enemyShip.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                
-                if (distance < closestDistance && distance <= this.detectionRange) {
-                    closestDistance = distance;
-                    closestTarget = otherEnemy;
+                // Skip if same faction (faction-based targeting)
+                if (!this.scene.factionSystem || !this.scene.factionSystem.areSameFaction(enemyShip, otherEnemy)) {
+                    const dx = otherEnemy.x - enemyShip.x;
+                    const dy = otherEnemy.y - enemyShip.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance < closestDistance && distance <= this.detectionRange) {
+                        closestDistance = distance;
+                        closestTarget = otherEnemy;
+                    }
+                } else {
+                    // Same faction - skip targeting
+                    const enemyFaction = this.scene.factionSystem.getShipFaction(enemyShip);
+                    const otherFaction = this.scene.factionSystem.getShipFaction(otherEnemy);
                 }
             }
         }
@@ -291,10 +329,20 @@ export default class EnemySystem {
             return false;
         }
         
-        // Check fire rate cooldown
+        // Check fire rate cooldown with faction-specific fire rate
         const enemyId = enemyShip.id || `enemy_${this.enemyShips.indexOf(enemyShip)}`;
         const currentTime = Date.now();
-        if (this.lastFireTime[enemyId] && currentTime - this.lastFireTime[enemyId] < this.fireRate) {
+        
+        // Calculate fire rate based on enemy's faction
+        let fireRate = this.fireRate; // Base fire rate (2000ms)
+        if (this.scene.factionSystem && enemyShip.faction) {
+            fireRate = this.scene.factionSystem.getModifiedReloadTimeForFaction(this.fireRate, enemyShip.faction);
+            if (fireRate !== this.fireRate) {
+                console.log(`🔥 ${enemyShip.faction.displayName} enemy fire rate: ${this.fireRate}ms -> ${fireRate}ms`);
+            }
+        }
+        
+        if (this.lastFireTime[enemyId] && currentTime - this.lastFireTime[enemyId] < fireRate) {
             return false;
         }
         
@@ -445,6 +493,52 @@ export default class EnemySystem {
                 }
             }
         }
+        
+        // Check if should attempt boarding
+        if (this.shouldAttemptBoarding(enemyShip, target, distance)) {
+            const boardingSuccess = this.scene.combatSystem.initiateBoarding(enemyShip, target);
+            if (boardingSuccess) {
+                console.log(`🔪 Enemy ${enemyShip.shipType.name} attempted boarding on player!`);
+            }
+        }
+    }
+    
+    shouldAttemptBoarding(enemyShip, target, distance) {
+        // Only board player ships
+        if (!target.isPlayer) {
+            return false;
+        }
+        
+        // Skip if same faction (faction-based targeting)
+        if (this.scene.factionSystem && this.scene.factionSystem.areSameFaction(enemyShip, target)) {
+            const enemyFaction = this.scene.factionSystem.getShipFaction(enemyShip);
+            const playerFaction = this.scene.factionSystem.getShipFaction(target);
+            console.log(` diplomacy boarding: Enemy ${enemyShip.shipType.name} (${enemyFaction?.displayName}) avoiding boarding player ${target.shipType.name} (${playerFaction?.displayName}) - same faction`);
+            return false;
+        }
+        
+        // Check if close enough for boarding
+        const boardingDistance = (enemyShip.size / 2) + (target.size / 2) + 100;
+        if (distance > boardingDistance) {
+            return false;
+        }
+        
+        // Check if enemy has enough crew (at least 50% of max crew)
+        if (enemyShip.crew < enemyShip.crewMax * 0.5) {
+            return false;
+        }
+        
+        // Check if player is weakened (low crew or health)
+        const playerWeakened = target.crewHealth < target.maxCrewHealth * 0.4 || 
+                              target.health < target.maxHealth * 0.3;
+        
+        // Board if player is weakened or if enemy has significantly more crew
+        const crewAdvantage = enemyShip.crew > target.crew * 1.5;
+        
+        // Random factor - not all enemies will attempt boarding even when conditions are met
+        const boardingChance = playerWeakened ? 0.7 : (crewAdvantage ? 0.4 : 0.1);
+        
+        return Math.random() < boardingChance;
     }
     
     shouldFireWhileAvoiding(enemyShip, target, distance) {

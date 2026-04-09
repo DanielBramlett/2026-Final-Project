@@ -25,6 +25,18 @@ export default class PlayerSystem {
             shipType,
         );
         this.playerShip.isPlayer = true; // Mark as player ship for red hitbox
+        
+        // Apply faction speed and turn speed buffs if French
+        if (this.scene.factionSystem) {
+            const modifiedSpeed = this.scene.factionSystem.getModifiedSpeed(shipType.speed);
+            this.playerShip.speed = modifiedSpeed;
+            console.log(`Applied faction speed buff: ${shipType.speed} -> ${modifiedSpeed}`);
+            
+            const modifiedTurnSpeed = this.scene.factionSystem.getModifiedTurnSpeed(shipType.turnSpeed);
+            this.playerShip.turnSpeed = modifiedTurnSpeed;
+            console.log(`Applied faction turn speed buff: ${shipType.turnSpeed} -> ${modifiedTurnSpeed}`);
+        }
+        
         return this.playerShip;
     }
 
@@ -37,7 +49,10 @@ export default class PlayerSystem {
             i: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.I),
             e: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E),
             r: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R),
-            space: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
+            b: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.B),
+            space: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
+            // Debug key for testing ship capture
+            t: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.T)
         };
 
         // Add mouse input for cannon firing
@@ -79,6 +94,16 @@ export default class PlayerSystem {
             }
         }
         
+        // Handle T key for debug testing ship capture
+        if (Phaser.Input.Keyboard.JustDown(this.keys.t)) {
+            this.debugShipCapture();
+        }
+        
+        // Handle B key for boarding
+        if (Phaser.Input.Keyboard.JustDown(this.keys.b)) {
+            this.attemptBoarding();
+        }
+        
         // Handle player movement
         if (this.keys.w.isDown) {
             this.playerShip.moveForward();
@@ -100,7 +125,10 @@ export default class PlayerSystem {
         }
     }
 
-    changePlayerShip(newShipType) {
+    changePlayerShip(newShipType, shipId = null) {
+        // Store the ship ID for upgrade lookup
+        let currentShipId = shipId;
+        
         // Store old position, velocity, facing angle, and player data
         const oldX = this.playerShip.x;
         const oldY = this.playerShip.y;
@@ -109,11 +137,14 @@ export default class PlayerSystem {
         const oldFacingAngle = this.playerShip.facingAngle;
         const oldSize = this.playerShip.size;
         
-        // Save player's gold, cargo, owned ships, and named ships
+        // Save player's gold, cargo, crew count, owned ships, and named ships
         const savedGold = this.playerShip.gold;
         const savedCargo = { ...this.playerShip.tradeGoods };
+        const savedCrew = this.playerShip.crew; // Save current crew count
         const savedOwnedShips = [...this.playerShip.ownedShips];
         const savedNamedShips = { ...this.playerShip.namedShips }; // Preserve named ships!
+        
+        // Upgraded properties will be handled by applyShipUpgrades() for each ship
         
         // Find the port the player is currently at (not just the nearest one)
         let currentPort = null;
@@ -155,13 +186,15 @@ export default class PlayerSystem {
                 
                 // Check if spawn position is safe from enemy ships
                 validSpawnFound = true;
-                for (const enemyShip of this.scene.enemyShips) {
-                    const distanceToEnemy = Phaser.Math.Distance.Between(spawnX, spawnY, enemyShip.x, enemyShip.y);
-                    const minSafeDistance = (newShipType.size / 2) + (enemyShip.size / 2) + safeSpawnDistance;
-                    
-                    if (distanceToEnemy < minSafeDistance) {
-                        validSpawnFound = false;
-                        break;
+                if (this.scene.enemyShips && this.scene.enemyShips.length > 0) {
+                    for (const enemyShip of this.scene.enemyShips) {
+                        const distanceToEnemy = Phaser.Math.Distance.Between(spawnX, spawnY, enemyShip.x, enemyShip.y);
+                        const minSafeDistance = (newShipType.size / 2) + (enemyShip.size / 2) + safeSpawnDistance;
+                        
+                        if (distanceToEnemy < minSafeDistance) {
+                            validSpawnFound = false;
+                            break;
+                        }
                     }
                 }
                 
@@ -188,16 +221,37 @@ export default class PlayerSystem {
         this.playerShip = new Ship(this.scene, spawnX, spawnY, newShipType);
         this.playerShip.isPlayer = true; // Mark as player ship for red hitbox
         
-        // Apply any upgrades to the new ship
-        this.applyShipUpgrades();
+        // Apply any upgrades to the new ship first (using base stats)
+        this.applyShipUpgrades(currentShipId);
         
         console.log('New ship created, physics body exists:', !!this.playerShip.body);
         
-        // Restore player's gold, cargo, owned ships, and named ships
+        // Apply faction speed and turn speed buffs if French (after upgrades)
+        if (this.scene.factionSystem) {
+            const currentFaction = this.scene.factionSystem.getCurrentFaction();
+            if (currentFaction && currentFaction.name === 'French') {
+                // Apply faction multipliers to the already-upgraded speed values
+                const speedMultiplier = this.scene.factionSystem.getFactionBuff('speedMultiplier');
+                const turnSpeedMultiplier = this.scene.factionSystem.getFactionBuff('turnSpeedMultiplier');
+                
+                const originalSpeed = this.playerShip.speed;
+                const originalTurnSpeed = this.playerShip.turnSpeed;
+                
+                this.playerShip.speed = Math.round(this.playerShip.speed * speedMultiplier);
+                this.playerShip.turnSpeed = Math.round(this.playerShip.turnSpeed * turnSpeedMultiplier);
+                
+                console.log(`Applied French faction buffs to upgraded ship:`);
+                console.log(`  Speed: ${originalSpeed} -> ${this.playerShip.speed} (multiplier: ${speedMultiplier})`);
+                console.log(`  Turn Speed: ${originalTurnSpeed} -> ${this.playerShip.turnSpeed} (multiplier: ${turnSpeedMultiplier})`);
+            }
+        }
+        
+        // Restore player's gold, cargo, crew count, owned ships, and named ships
         this.playerShip.gold = savedGold;
         this.playerShip.tradeGoods = savedCargo;
         this.playerShip.ownedShips = savedOwnedShips;
         this.playerShip.namedShips = savedNamedShips; // Restore named ships!
+        this.playerShip.crew = savedCrew; // Restore crew count
         this.playerShip.cargo = this.playerShip.getCurrentCargo();
         
         // Restore movement properties
@@ -232,10 +286,9 @@ export default class PlayerSystem {
         this.scene.ports.forEach((port, index) => {
             console.log(`\n--- Processing port ${index + 1}: ${port.portName} ---`);
             
-            // Reset port contact state for the new ship
-            port.playerInContact = false;
-            port.hideContactPopup();
-            console.log(`Reset contact state for ${port.portName}`);
+            // Use the port's built-in ship switch handling
+            port.onPlayerShipSwitched();
+            console.log(`Called onPlayerShipSwitched for ${port.portName}`);
             
             // Remove old overlap if it exists
             if (port.contactOverlap) {
@@ -281,9 +334,8 @@ export default class PlayerSystem {
             this.scene.ports.forEach((port, index) => {
                 console.log(`\n--- Creating overlap for port ${index + 1}: ${port.portName} ---`);
                 
-                // Reset port contact state for the new ship
-                port.playerInContact = false;
-                port.hideContactPopup();
+                // Use the port's built-in ship switch handling
+                port.onPlayerShipSwitched();
                 
                 // Remove old overlap if it exists
                 if (port.contactOverlap) {
@@ -307,6 +359,10 @@ export default class PlayerSystem {
                                 console.log('\n*** METHOD 1: OVERLAP CALLBACK FIRED ***');
                                 if (!port.playerInContact) {
                                     console.log(`Player made contact with ${port.portName}`);
+                                    
+                                    // Reset all other ports' contact state when entering this port
+                                    port.resetAllPortsContactState();
+                                    
                                     port.playerInContact = true;
                                     port.showContactPopup();
                                 }
@@ -328,6 +384,10 @@ export default class PlayerSystem {
                                         console.log('\n*** METHOD 2: BACKUP OVERLAP CALLBACK FIRED ***');
                                         if (!port.playerInContact) {
                                             console.log(`BACKUP: Player made contact with ${port.portName}`);
+                                            
+                                            // Reset all other ports' contact state when entering this port
+                                            port.resetAllPortsContactState();
+                                            
                                             port.playerInContact = true;
                                             port.showContactPopup();
                                         }
@@ -467,6 +527,10 @@ export default class PlayerSystem {
                     if (isNearPort && !wasNearPort) {
                         console.log(`\n*** DISTANCE-BASED: Player entered ${port.portName} ***`);
                         console.log(`Distance: ${distance}px, Enter radius: ${enterRadius}px, Exit radius: ${exitRadius}px, Ship size: ${shipSize}px}`);
+                        
+                        // Reset all other ports' contact state when entering this port
+                        port.resetAllPortsContactState();
+                        
                         port.playerInContact = true;
                         port.showContactPopup();
                         
@@ -512,33 +576,57 @@ export default class PlayerSystem {
         return this.playerShip;
     }
     
-    applyShipUpgrades() {
-        // Find the ship modification system from any port (they all share the same instance)
-        let shipModificationSystem = null;
-        if (this.scene.ports && this.scene.ports.length > 0) {
-            shipModificationSystem = this.scene.ports[0].shipModificationSystem;
-        }
+    applyShipUpgrades(shipId = null) {
+        // Use the shared ship modification system from GameScene
+        const shipModificationSystem = this.scene.shipModificationSystem;
         
         if (!shipModificationSystem) {
             console.warn('Ship modification system not found, upgrades not applied');
             return;
         }
         
-        // Find the current ship's ID from named ships
-        const currentShipType = this.playerShip.shipType.name;
-        let currentShipId = null;
+        console.log('=== APPLYING SHIP UPGRADES ===');
+        console.log('Player ship type:', this.playerShip.shipType.name);
+        console.log('Named ships:', this.playerShip.namedShips);
         
-        for (const [shipId, namedShip] of Object.entries(this.playerShip.namedShips)) {
-            if (namedShip.shipKey === currentShipType) {
-                currentShipId = shipId;
-                break;
+        // Use provided shipId or find it from named ships
+        let currentShipId = shipId;
+        
+        if (!currentShipId) {
+            // Fallback: Find the current ship's ID from named ships
+            const currentShipType = this.playerShip.shipType.name;
+            
+            for (const [id, namedShip] of Object.entries(this.playerShip.namedShips)) {
+                console.log(`Checking ship ID: ${id}, shipKey: ${namedShip.shipKey}, shipName: ${namedShip.shipName}`);
+                if (namedShip.shipKey === currentShipType) {
+                    currentShipId = id;
+                    break;
+                }
             }
         }
         
         if (currentShipId) {
+            console.log(`Found current ship ID: ${currentShipId}`);
+            const upgrades = shipModificationSystem.getShipUpgrades(currentShipId);
+            console.log('Upgrades for this ship:', upgrades);
+            
             shipModificationSystem.applyUpgradesToShip(this.playerShip, currentShipId);
-            console.log(`Applied upgrades to ship: ${currentShipType} (${currentShipId})`);
+            console.log(`Applied upgrades to ship: ${this.playerShip.shipType.name} (${currentShipId})`);
+            
+            console.log('Ship stats after upgrades:', {
+                maxHealth: this.playerShip.maxHealth,
+                crewMax: this.playerShip.crewMax,
+                cargoMax: this.playerShip.cargoMax,
+                speed: this.playerShip.speed,
+                turnSpeed: this.playerShip.turnSpeed,
+                cannons: this.playerShip.cannons,
+                rowing: this.playerShip.rowing
+            });
+        } else {
+            console.warn('No ship ID found for ship type:', newShipType.name);
         }
+        
+        console.log('=== UPGRADE APPLICATION COMPLETE ===');
     }
 
     // Expose cargo menu state for info text visibility
@@ -644,5 +732,93 @@ export default class PlayerSystem {
         } else {
             console.log('Cannons are on cooldown!');
         }
+    }
+
+    attemptBoarding() {
+        // Prevent boarding if player is sunk
+        if (this.scene && this.scene.wreckageSystem && this.scene.wreckageSystem.areControlsDisabled()) {
+            console.log('Cannot board - player ship is sunk!');
+            return;
+        }
+        
+        // Find the closest enemy ship within boarding range
+        let closestEnemy = null;
+        let closestDistance = Infinity;
+        
+        this.scene.enemyShips.forEach(enemyShip => {
+            if (enemyShip.health > 0) { // Only target living ships
+                // Skip if same faction (faction-based boarding restriction)
+                if (this.scene.factionSystem && this.scene.factionSystem.areSameFaction(this.playerShip, enemyShip)) {
+                    const playerFaction = this.scene.factionSystem.getShipFaction(this.playerShip);
+                    const enemyFaction = this.scene.factionSystem.getShipFaction(enemyShip);
+                    console.log(`diplomacy boarding: Player avoiding boarding ${enemyShip.shipType.name} (${enemyFaction?.displayName}) - same faction as player (${playerFaction?.displayName})`);
+                    return;
+                }
+                
+                const distance = Phaser.Math.Distance.Between(
+                    this.playerShip.x, this.playerShip.y,
+                    enemyShip.x, enemyShip.y
+                );
+                
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                    closestEnemy = enemyShip;
+                }
+            }
+        });
+        
+        if (!closestEnemy) {
+            console.log('No enemy ships found for boarding!');
+            this.showBoardingMessage('No enemy ships nearby!');
+            return;
+        }
+        
+        // Attempt boarding through combat system
+        const success = this.scene.combatSystem.initiateBoarding(this.playerShip, closestEnemy);
+        
+        if (!success) {
+            console.log('Boarding attempt failed!');
+            this.showBoardingMessage('Too far to board or on cooldown!');
+        }
+    }
+
+    showBoardingMessage(message) {
+        // Create temporary text message for boarding feedback
+        const messageText = this.scene.add.text(
+            this.scene.cameras.main.width / 2,
+            this.scene.cameras.main.height / 2 - 100,
+            message,
+            {
+                fontSize: '28px',
+                fill: '#FFFF00',
+                backgroundColor: '#000000',
+                padding: { x: 15, y: 8 },
+                align: 'center'
+            }
+        );
+        messageText.setScrollFactor(0);
+        messageText.setDepth(2000);
+        messageText.setOrigin(0.5, 0.5);
+        
+        // Remove message after 2 seconds
+        setTimeout(() => {
+            if (messageText && messageText.active) {
+                messageText.destroy();
+            }
+        }, 2000);
+    }
+
+    debugShipCapture() {
+        console.log('=== DEBUG SHIP CAPTURE TEST ===');
+        console.log('Player ownedShips:', this.playerShip.ownedShips);
+        console.log('Player namedShips:', this.playerShip.namedShips);
+        
+        // Test adding a ship
+        const testShipId = this.playerShip.addNamedShip('SLOOP', 'Test Captured Sloop');
+        console.log('Test ship added with ID:', testShipId);
+        console.log('Player ownedShips after test:', this.playerShip.ownedShips);
+        console.log('Player namedShips after test:', this.playerShip.namedShips);
+        
+        this.showBoardingMessage('Debug: Test ship added to inventory!');
     }
 }

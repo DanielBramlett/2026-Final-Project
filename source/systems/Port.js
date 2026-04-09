@@ -3,8 +3,11 @@ import { SHIP_TYPES } from '../constants/shipTypes.js';
 import { ShipModificationSystem } from './ShipModificationSystem.js';
 
 export class Port extends Obstacle {
-    constructor(scene, x, y, width, height, textureKey, portName = 'Port', region = 'general') {
+    constructor(scene, x, y, width, height, textureKey, portName = 'Port', region = 'general', shipTypes = null) {
         super(scene, x, y, width, height, textureKey);
+        
+        // Store ship types reference
+        this.shipTypes = shipTypes;
         
         this.portName = portName;
         this.region = region;
@@ -19,8 +22,7 @@ export class Port extends Obstacle {
         this.debugKeyG = null;
         this.debugKeyJ = null;
         
-        // Initialize ship modification system
-        this.shipModificationSystem = new ShipModificationSystem(scene);
+        // Ship modification system will be set from GameScene's shared instance
         
         // Dynamic pricing system
         this.baseGoods = [
@@ -128,6 +130,10 @@ export class Port extends Obstacle {
                     console.log('Player position:', player.x, player.y);
                     console.log('Port position:', this.x, this.y);
                     console.log('Distance:', Phaser.Math.Distance.Between(player.x, player.y, this.x, this.y));
+                    
+                    // Reset all other ports' contact state when entering this port
+                    this.resetAllPortsContactState();
+                    
                     this.playerInContact = true;
                     this.showContactPopup();
                 }
@@ -144,21 +150,25 @@ export class Port extends Obstacle {
             loop: true,
             callback: () => {
                 if (this.playerInContact) {
+                    // Always get the current player ship reference to handle ship switching
+                    const currentPlayerShip = this.scene.playerShip;
+                    if (!currentPlayerShip) return; // Safety check
+                    
                     const distance = Phaser.Math.Distance.Between(
-                        scene.playerShip.x, 
-                        scene.playerShip.y, 
+                        currentPlayerShip.x, 
+                        currentPlayerShip.y, 
                         this.x, 
                         this.y
                     );
                     // Player is out of contact if they're beyond the port bounds plus buffer
                     const maxDimension = Math.max(this.width, this.height);
                     // Account for ship size in distance calculation - larger ships need more space
-                    const shipSizeBuffer = scene.playerShip.size / 2; // Half of ship size as buffer
+                    const shipSizeBuffer = currentPlayerShip.size / 2 +200; // Half of ship size as buffer
                     const exitDistance = maxDimension + 100 + shipSizeBuffer; // Port size + 100px + ship size buffer
                     
                     if (distance > exitDistance) {
                         console.log('Port: Player exited contact zone for', this.portName);
-                        console.log('Distance:', distance, 'Exit threshold:', exitDistance, 'Ship size:', scene.playerShip.size);
+                        console.log('Distance:', distance, 'Exit threshold:', exitDistance, 'Ship size:', currentPlayerShip.size);
                         this.playerInContact = false;
                         this.hideContactPopup();
                         // Don't close menu if player is actively using it
@@ -178,6 +188,34 @@ export class Port extends Obstacle {
         // Set up debug mode keys
         this.debugKeyG = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.G);
         this.debugKeyJ = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.J);
+    }
+    
+    // Method to reset all ports' contact state when entering a new port
+    resetAllPortsContactState() {
+        if (this.scene.ports) {
+            this.scene.ports.forEach(port => {
+                if (port !== this) { // Don't reset this port's state
+                    port.playerInContact = false;
+                    port.hideContactPopup();
+                    console.log(`Reset contact state for ${port.portName} (player entered ${this.portName})`);
+                }
+            });
+        }
+    }
+    
+    // Method to handle player ship switching
+    onPlayerShipSwitched() {
+        console.log(`Port ${this.portName}: Resetting state for player ship switch`);
+        
+        // Reset contact state to prevent stuck UI
+        this.playerInContact = false;
+        this.hideContactPopup();
+        
+        // Force close any open menus to prevent UI access from wrong location
+        if (this.menuActive) {
+            console.log(`Port ${this.portName}: Force-closing menu due to ship switch`);
+            this.hideMenu();
+        }
     }
     
     updatePrices() {
@@ -281,6 +319,30 @@ export class Port extends Obstacle {
     showMenu() {
         if (this.menuActive) return;
         
+        // Verify player is actually close enough to access the menu
+        const currentPlayerShip = this.scene.playerShip;
+        if (!currentPlayerShip) {
+            console.log('Port: Cannot show menu - no player ship found');
+            return;
+        }
+        
+        const distance = Phaser.Math.Distance.Between(
+            currentPlayerShip.x,
+            currentPlayerShip.y,
+            this.x,
+            this.y
+        );
+        
+        // Calculate maximum interaction distance (same as entry radius)
+        const maxDimension = Math.max(this.width, this.height);
+        const shipSize = currentPlayerShip.size || 50;
+        const maxInteractionDistance = (maxDimension / 2) + (shipSize / 2) + 50; // Same as exit radius
+        
+        if (distance > maxInteractionDistance) {
+            console.log(`Port ${this.portName}: Player too far to access menu (${distance}px > ${maxInteractionDistance}px)`);
+            return;
+        }
+        
         this.menuActive = true;
         this.selectedOption = 0;
         
@@ -310,7 +372,7 @@ export class Port extends Obstacle {
         // Create menu options
         this.menuOptions = [
             this.scene.add.text(
-                menuX, menuY - 40, 'Trade Goods', {
+                menuX, menuY - 40, 'Repair Ship', {
                     fontSize: '30px',
                     fill: this.selectedOption === 0 ? '#ffff00' : '#fff',
                     backgroundColor: '#000000',
@@ -318,7 +380,7 @@ export class Port extends Obstacle {
                 }
             ),
             this.scene.add.text(
-                menuX, menuY + 10, 'Sell Goods', {
+                menuX, menuY + 10, 'Trade Goods', {
                     fontSize: '30px',
                     fill: this.selectedOption === 1 ? '#ffff00' : '#fff',
                     backgroundColor: '#000000',
@@ -326,7 +388,7 @@ export class Port extends Obstacle {
                 }
             ),
             this.scene.add.text(
-                menuX, menuY + 60, 'Buy Ships', {
+                menuX, menuY + 60, 'Sell Goods', {
                     fontSize: '30px',
                     fill: this.selectedOption === 2 ? '#ffff00' : '#fff',
                     backgroundColor: '#000000',
@@ -334,7 +396,7 @@ export class Port extends Obstacle {
                 }
             ),
             this.scene.add.text(
-                menuX, menuY + 110, 'Build Ship', {
+                menuX, menuY + 110, 'Buy Ships', {
                     fontSize: '30px',
                     fill: this.selectedOption === 3 ? '#ffff00' : '#fff',
                     backgroundColor: '#000000',
@@ -342,9 +404,25 @@ export class Port extends Obstacle {
                 }
             ),
             this.scene.add.text(
-                menuX, menuY + 160, 'Ship Inventory', {
+                menuX, menuY + 160, 'Build Ship', {
                     fontSize: '30px',
                     fill: this.selectedOption === 4 ? '#ffff00' : '#fff',
+                    backgroundColor: '#000000',
+                    padding: { x: 10, y: 5 }
+                }
+            ),
+            this.scene.add.text(
+                menuX, menuY + 210, 'Ship Inventory', {
+                    fontSize: '30px',
+                    fill: this.selectedOption === 5 ? '#ffff00' : '#fff',
+                    backgroundColor: '#000000',
+                    padding: { x: 10, y: 5 }
+                }
+            ),
+            this.scene.add.text(
+                menuX, menuY + 260, 'Trade Run', {
+                    fontSize: '30px',
+                    fill: this.selectedOption === 6 ? '#ffff00' : '#fff',
                     backgroundColor: '#000000',
                     padding: { x: 10, y: 5 }
                 }
@@ -359,7 +437,7 @@ export class Port extends Obstacle {
         
         // Create instructions
         this.menuInstructions = this.scene.add.text(
-            menuX, menuY + 215, 'Use UP/DOWN to select', {
+            menuX, menuY + 295, 'Use UP/DOWN to select', {
                 fontSize: '30px',
                 fill: '#ccc',
                 backgroundColor: '#000000',
@@ -372,7 +450,7 @@ export class Port extends Obstacle {
         
         // Create second instruction line
         this.menuInstructions2 = this.scene.add.text(
-            menuX, menuY + 250, 'ENTER to confirm, ESC to close', {
+            menuX, menuY + 330, 'ENTER to confirm, ESC to close', {
                 fontSize: '28px',
                 fill: '#ccc',
                 backgroundColor: '#000000',
@@ -475,21 +553,297 @@ export class Port extends Obstacle {
     executeMenuOption() {
         switch (this.selectedOption) {
             case 0:
-                this.showTradeGoodsMenu();
+                this.showRepairMenu();
                 break;
             case 1:
-                this.showSellGoodsMenu();
+                this.showTradeGoodsMenu();
                 break;
             case 2:
-                this.showBuyShipsMenu();
+                this.showSellGoodsMenu();
                 break;
             case 3:
-                this.showBuildShipMenu();
+                this.showBuyShipsMenu();
                 break;
             case 4:
+                this.showBuildShipMenu();
+                break;
+            case 5:
                 this.showShipInventory();
                 break;
+            case 6:
+                this.showTradeRunMenu();
+                break;
         }
+    }
+    
+    showRepairMenu() {
+        // Hide current menu
+        this.hideMenu();
+        
+        // Create repair menu
+        const menuX = this.scene.cameras.main.width / 2;
+        const menuY = this.scene.cameras.main.height / 2;
+        
+        const repairBackground = this.scene.add.rectangle(
+            menuX, menuY, 600, 500, 0x000000, 0.9
+        );
+        repairBackground.setScrollFactor(0);
+        repairBackground.setDepth(1000);
+        this.repairBackground = repairBackground; // Store for cleanup
+        
+        const repairTitle = this.scene.add.text(
+            menuX, menuY - 200, 'Repair Ship', {
+            fontSize: '60px',
+            fill: '#00ff00',
+            backgroundColor: '#000000',
+            padding: { x: 10, y: 5 }
+        }
+        );
+        repairTitle.setScrollFactor(0);
+        repairTitle.setDepth(1001);
+        repairTitle.setOrigin(0.5, 0.5);
+        this.repairTitle = repairTitle; // Store for cleanup
+        
+        // Calculate repair costs
+        const playerShip = this.scene.playerShip;
+        const healthDamage = playerShip.maxHealth - playerShip.health;
+        const sailDamage = (playerShip.maxSailIntegrity || 100) - (playerShip.sailIntegrity || 100);
+        
+        const healthRepairCost = healthDamage * 2; // 2 gold per health point
+        const sailRepairCost = sailDamage * 1; // 1 gold per sail integrity point
+        const totalCost = healthRepairCost + sailRepairCost;
+        
+        // Display ship status
+        const statusText = this.scene.add.text(
+            menuX, menuY - 120, 
+            `Ship: ${playerShip.shipType.name}
+Health: ${playerShip.health}/${playerShip.maxHealth}
+Sails: ${playerShip.sailIntegrity || 100}/${playerShip.maxSailIntegrity || 100}`, {
+            fontSize: '24px',
+            fill: '#fff',
+            backgroundColor: '#000000',
+            padding: { x: 10, y: 5 },
+            align: 'center'
+        }
+        );
+        statusText.setScrollFactor(0);
+        statusText.setDepth(1001);
+        statusText.setOrigin(0.5, 0.5);
+        this.repairStatusText = statusText; // Store for cleanup
+        
+        // Display repair costs
+        const costText = this.scene.add.text(
+            menuX, menuY, 
+            `Health Repair: ${healthRepairCost} gold
+Sail Repair: ${sailRepairCost} gold
+
+Total Cost: ${totalCost} gold`, {
+            fontSize: '22px',
+            fill: '#ffff00',
+            backgroundColor: '#000000',
+            padding: { x: 10, y: 5 },
+            align: 'center'
+        }
+        );
+        costText.setScrollFactor(0);
+        costText.setDepth(1001);
+        costText.setOrigin(0.5, 0.5);
+        this.repairCostText = costText; // Store for cleanup
+        
+        // Display player gold
+        const goldText = this.scene.add.text(
+            menuX, menuY + 80, 
+            `Your Gold: ${playerShip.gold}`, {
+            fontSize: '26px',
+            fill: playerShip.gold >= totalCost ? '#00ff00' : '#ff0000',
+            backgroundColor: '#000000',
+            padding: { x: 10, y: 5 }
+        }
+        );
+        goldText.setScrollFactor(0);
+        goldText.setDepth(1001);
+        goldText.setOrigin(0.5, 0.5);
+        this.repairGoldText = goldText; // Store for cleanup
+        
+        // Add repair result text (initially hidden)
+        this.repairResultText = this.scene.add.text(
+            menuX, menuY + 140, '', {
+            fontSize: '24px',
+            fill: '#00ff00',
+            backgroundColor: '#000000',
+            padding: { x: 10, y: 5 }
+        }
+        );
+        this.repairResultText.setScrollFactor(0);
+        this.repairResultText.setDepth(1001);
+        this.repairResultText.setOrigin(0.5, 0.5);
+        this.repairResultText.setVisible(false);
+        
+        // Add instructions
+        const instructionText = this.scene.add.text(
+            menuX, menuY + 190, 
+            'ENTER: Repair Ship | ESC: Back', {
+            fontSize: '22px',
+            fill: '#ccc',
+            backgroundColor: '#000000',
+            padding: { x: 10, y: 5 }
+        }
+        );
+        instructionText.setScrollFactor(0);
+        instructionText.setDepth(1001);
+        instructionText.setOrigin(0.5, 0.5);
+        this.repairInstructionText = instructionText; // Store for cleanup
+        
+        // Store repair data for the repair function
+        this.repairData = {
+            healthCost: healthRepairCost,
+            sailCost: sailRepairCost,
+            totalCost: totalCost
+        };
+        
+        // Set up repair keys
+        this.repairKeys = {
+            enter: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER),
+            escape: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
+        };
+        
+        // Set up repair input handler
+        this.setupRepairInput();
+    }
+    
+    setupRepairInput() {
+        this.repairInputHandler = (event) => {
+            if (!this.repairKeys) return;
+            
+            if (event.keyCode === Phaser.Input.Keyboard.KeyCodes.ENTER) {
+                this.performRepair();
+            } else if (event.keyCode === Phaser.Input.Keyboard.KeyCodes.ESC) {
+                this.hideRepairMenu();
+            }
+        };
+        
+        this.scene.input.keyboard.on('keydown', this.repairInputHandler);
+    }
+    
+    performRepair() {
+        const playerShip = this.scene.playerShip;
+        const { totalCost, healthCost, sailCost } = this.repairData;
+        
+        if (playerShip.gold < totalCost) {
+            this.repairResultText.setText('Not enough gold!');
+            this.repairResultText.setFill('#ff0000');
+            this.repairResultText.setVisible(true);
+            
+            setTimeout(() => {
+                if (this.repairResultText) {
+                    this.repairResultText.setVisible(false);
+                }
+            }, 2000);
+            return;
+        }
+        
+        // Check if repairs are needed
+        const needsRepair = playerShip.health < playerShip.maxHealth || 
+                           (playerShip.sailIntegrity || 100) < (playerShip.maxSailIntegrity || 100);
+        
+        if (!needsRepair) {
+            this.repairResultText.setText('Ship is already fully repaired!');
+            this.repairResultText.setFill('#ffff00');
+            this.repairResultText.setVisible(true);
+            
+            setTimeout(() => {
+                if (this.repairResultText) {
+                    this.repairResultText.setVisible(false);
+                }
+            }, 2000);
+            return;
+        }
+        
+        // Deduct gold
+        playerShip.gold -= totalCost;
+        
+        // Perform repairs
+        const healthBefore = playerShip.health;
+        const sailsBefore = playerShip.sailIntegrity || 100;
+        
+        if (healthCost > 0) {
+            playerShip.repairShip(playerShip.maxHealth - playerShip.health);
+        }
+        if (sailCost > 0) {
+            playerShip.repairSails(playerShip.maxSailIntegrity - (playerShip.sailIntegrity || 100));
+        }
+        
+        // Show success message
+        this.repairResultText.setText(
+            `Ship repaired successfully!
+Health: ${healthBefore} → ${playerShip.health}
+Sails: ${sailsBefore} → ${playerShip.sailIntegrity || 100}`
+        );
+        this.repairResultText.setFill('#00ff00');
+        this.repairResultText.setVisible(true);
+        
+        // Update gold display
+        this.repairGoldText.setText(`Your Gold: ${playerShip.gold}`);
+        this.repairGoldText.setFill('#00ff00');
+        
+        // Update status display
+        this.repairStatusText.setText(
+            `Ship: ${playerShip.shipType.name}
+Health: ${playerShip.health}/${playerShip.maxHealth}
+Sails: ${playerShip.sailIntegrity || 100}/${playerShip.maxSailIntegrity || 100}`
+        );
+        
+        // Update costs (should be 0 now)
+        this.repairCostText.setText(
+            `Health Repair: 0 gold
+Sail Repair: 0 gold
+
+Total Cost: 0 gold`
+        );
+        
+        // Play repair sound effect
+        this.scene.sound.play('anchor'); // Using anchor sound as placeholder
+        
+        setTimeout(() => {
+            if (this.repairResultText) {
+                this.repairResultText.setVisible(false);
+            }
+        }, 3000);
+    }
+    
+    hideRepairMenu() {
+        // Play anchor sound when exiting repair menu
+        this.scene.sound.play('anchor');
+        
+        // Destroy repair menu elements
+        if (this.repairBackground) this.repairBackground.destroy();
+        if (this.repairTitle) this.repairTitle.destroy();
+        if (this.repairStatusText) this.repairStatusText.destroy();
+        if (this.repairCostText) this.repairCostText.destroy();
+        if (this.repairGoldText) this.repairGoldText.destroy();
+        if (this.repairResultText) this.repairResultText.destroy();
+        if (this.repairInstructionText) this.repairInstructionText.destroy();
+        
+        // Remove repair input handler
+        if (this.repairInputHandler) {
+            this.scene.input.keyboard.off('keydown', this.repairInputHandler);
+        }
+        
+        // Destroy repair keys
+        if (this.repairKeys) {
+            Object.values(this.repairKeys).forEach(key => {
+                if (key && key.destroy) {
+                    key.destroy();
+                }
+            });
+            this.repairKeys = null;
+        }
+        
+        // Clear repair data
+        this.repairData = null;
+        
+        // Return to main menu
+        this.showMenu();
     }
     
     showBuildShipMenu() {
@@ -1936,12 +2290,17 @@ export class Port extends Obstacle {
             fill: '#fff',
             backgroundColor: '#000000',
             padding: { x: 10, y: 5 }
-        }
+            }
         );
         inventoryTitle.setScrollFactor(0);
         inventoryTitle.setDepth(1001);
         inventoryTitle.setOrigin(0.5, 0.5);
         this.inventoryTitle = inventoryTitle; // Store for cleanup
+        
+        // Force refresh of player ship data to ensure latest captured ships appear
+        console.log('=== SHIP INVENTORY REFRESH ===');
+        console.log('Player ownedShips before refresh:', this.scene.playerShip.ownedShips);
+        console.log('Player namedShips before refresh:', this.scene.playerShip.namedShips);
         
         // Get player's named ships
         const namedShips = this.scene.playerShip.getAllNamedShips();
@@ -1964,6 +2323,8 @@ export class Port extends Obstacle {
             
             const shipType = SHIP_TYPES[namedShip.shipKey];
             console.log('Ship type for', namedShip.shipKey, ':', shipType);
+            console.log('SHIP_TYPES object available:', Object.keys(SHIP_TYPES));
+            console.log('Available ship keys:', Object.keys(SHIP_TYPES).filter(key => SHIP_TYPES[key]));
             
             if (shipType) {
                 this.inventoryShips.push({
@@ -2117,7 +2478,7 @@ export class Port extends Obstacle {
             
             // The scene's changePlayerShip method now handles preserving gold and cargo
             // and spawning the player outside the port
-            this.scene.playerSystem.changePlayerShip(ship.shipType);
+            this.scene.playerSystem.changePlayerShip(ship.shipType, ship.shipId);
             
             // Clean up all inventory menu elements
             if (this.inventoryBackground) this.inventoryBackground.destroy();
@@ -2277,10 +2638,30 @@ export class Port extends Obstacle {
         
         // Check for C key press when in contact
         if (this.playerInContact && !this.menuActive && Phaser.Input.Keyboard.JustDown(this.dockKey)) {
-            console.log('Port: C key pressed, opening menu for', this.portName);
-            // Play anchor sound when pressing C to dock
-            this.scene.sound.play('anchor');
-            this.showMenu();
+            // Double-check distance before allowing menu access
+            const currentPlayerShip = this.scene.playerShip;
+            if (currentPlayerShip) {
+                const distance = Phaser.Math.Distance.Between(
+                    currentPlayerShip.x,
+                    currentPlayerShip.y,
+                    this.x,
+                    this.y
+                );
+                
+                // Calculate maximum interaction distance
+                const maxDimension = Math.max(this.width, this.height);
+                const shipSize = currentPlayerShip.size || 50;
+                const maxInteractionDistance = (maxDimension / 2) + (shipSize / 2) + 50;
+                
+                if (distance <= maxInteractionDistance) {
+                    console.log('Port: C key pressed, opening menu for', this.portName);
+                    // Play anchor sound when pressing C to dock
+                    this.scene.sound.play('anchor');
+                    this.showMenu();
+                } else {
+                    console.log(`Port ${this.portName}: C key pressed but player too far away (${distance}px > ${maxInteractionDistance}px)`);
+                }
+            }
         }
         
         this.updateMenu();
@@ -2682,6 +3063,301 @@ export class Port extends Obstacle {
                 this.cleanupSellMenu();
                 this.showMenu(); // Return to main menu
             }
+        }
+    }
+
+    showTradeRunMenu() {
+        // Hide current menu
+        this.hideMenu();
+        
+        // Create trade run menu
+        const menuX = this.scene.cameras.main.width / 2;
+        const menuY = this.scene.cameras.main.height / 2;
+        
+        // Define menu center for positioning (used by all text elements)
+        const menuCenterY = this.scene.cameras.main.height / 2;
+        
+        this.tradeRunBackground = this.scene.add.rectangle(
+            menuX, menuY, 800, 600, 0x000000, 0.9
+        );
+        this.tradeRunBackground.setScrollFactor(0);
+        this.tradeRunBackground.setDepth(1000);
+        
+        // Create menu title
+        const titleText = this.scene.add.text(
+            menuX, menuY - 250, 'Trade Run Menu', {
+                fontSize: '48px',
+                fill: '#fff',
+                backgroundColor: '#000000',
+                padding: { x: 10, y: 5 }
+            }
+        );
+        titleText.setScrollFactor(0);
+        titleText.setDepth(1001);
+        titleText.setOrigin(0.5, 0.5);
+        
+        // Position title correctly within menu bounds
+        const titleScreenY = menuCenterY + (menuY - 250 - menuCenterY);
+        titleText.x = menuX;
+        titleText.y = titleScreenY;
+        
+        this.tradeRunTitle = titleText;
+        
+        // Get available ships for trade runs
+        const availableShips = this.scene.tradeRunSystem.getAvailableShipsForTrade();
+        
+        // Get active trade runs
+        const activeTradeRuns = this.scene.tradeRunSystem.getActiveTradeRuns();
+        
+        // Show active trade runs
+        let yOffset = 0; // Start at menu center
+        
+        if (activeTradeRuns.length > 0) {
+            this.activeHeader = this.scene.add.text(menuX, yOffset, 'Active Trade Runs:', {
+                fontSize: '24px',
+                fill: '#ffff00',
+                backgroundColor: '#000000',
+                padding: { x: 10, y: 5 }
+            });
+            this.activeHeader.setScrollFactor(0);
+            this.activeHeader.setDepth(1001);
+            this.activeHeader.setOrigin(0.5, 0.5);
+            
+            // Position active header correctly within menu bounds
+            const activeHeaderScreenY = menuCenterY + yOffset;
+            this.activeHeader.x = menuX;
+            this.activeHeader.y = activeHeaderScreenY;
+            
+            yOffset += 40;
+            this.activeRunTexts = [];
+            activeTradeRuns.forEach((run, index) => {
+                const timeRemaining = this.scene.tradeRunSystem.getTimeRemaining(run);
+                const timeString = this.scene.tradeRunSystem.formatTimeRemaining(timeRemaining);
+                
+                const runText = this.scene.add.text(menuX, yOffset + (index * 30), 
+                    `${run.shipType.name} - Returns in ${timeString} (${run.reward} gold)`, {
+                    fontSize: '18px',
+                    fill: '#00ff00',
+                    backgroundColor: '#000000',
+                    padding: { x: 10, y: 5 }
+                });
+                runText.setScrollFactor(0);
+                runText.setDepth(1001);
+                runText.setOrigin(0.5, 0.5);
+                
+                // Position run text correctly within menu bounds
+                const runScreenY = menuCenterY + (yOffset + (index * 30));
+                runText.x = menuX;
+                runText.y = runScreenY;
+                
+                this.activeRunTexts.push(runText);
+            });
+        }
+        
+        yOffset += activeTradeRuns.length * 30 + 20;
+        
+        // Show available ships
+        
+        if (availableShips.length > 0) {
+            this.availableHeader = this.scene.add.text(menuX, yOffset, 'Available Ships for Trade Run:', {
+                fontSize: '24px',
+                fill: '#fff',
+                backgroundColor: '#000000',
+                padding: { x: 10, y: 5 }
+            });
+            this.availableHeader.setScrollFactor(0);
+            this.availableHeader.setDepth(1001);
+            this.availableHeader.setOrigin(0.5, 0.5);
+            
+            // Position header correctly within menu bounds
+            const headerScreenY = menuCenterY + yOffset;
+            this.availableHeader.x = menuX;
+            this.availableHeader.y = headerScreenY;
+            
+            yOffset += 40;
+            
+            this.tradeRunShips = [];
+            this.selectedTradeRunShip = 0;
+            
+            availableShips.forEach((ship, index) => {
+                const textY = yOffset + (index * 35);
+                
+                const shipText = this.scene.add.text(menuX, textY, 
+                    `${ship.displayName} - Cost: ${ship.cost} gold, Reward: ${ship.reward} gold (7 min)`, {
+                    fontSize: '18px',
+                    fill: '#ffffff',
+                    backgroundColor: '#000000',
+                    padding: { x: 10, y: 5 }
+                });
+                shipText.setScrollFactor(0);
+                shipText.setDepth(1001);
+                shipText.setOrigin(0.5, 0.5);
+                
+                // Position correctly within menu bounds
+                const finalY = menuCenterY + textY;
+                
+                shipText.x = menuX;
+                shipText.y = finalY;
+                
+                this.tradeRunShips.push(shipText);
+            });
+            
+            // Instructions
+            const instructionsMenuY = yOffset + availableShips.length * 35 + 30;
+            const instructionsScreenY = menuCenterY + instructionsMenuY;
+            
+            this.tradeRunInstructions = this.scene.add.text(
+                menuX, instructionsScreenY, 
+                'Use UP/DOWN to select, ENTER to send ship, ESC to go back', {
+                fontSize: '18px',
+                fill: '#ccc',
+                backgroundColor: '#000000',
+                padding: { x: 10, y: 5 }
+            });
+            this.tradeRunInstructions.setScrollFactor(0);
+            this.tradeRunInstructions.setDepth(1001);
+            this.tradeRunInstructions.setOrigin(0.5, 0.5);
+            
+            // Set up keyboard controls
+            this.setupTradeRunControls(availableShips);
+        } else {
+            this.noShipsText = this.scene.add.text(menuX, yOffset, 'No available ships for trade runs!', {
+                fontSize: '24px',
+                fill: '#ff0000',
+                backgroundColor: '#000000',
+                padding: { x: 10, y: 5 }
+            });
+            this.noShipsText.setScrollFactor(0);
+            this.noShipsText.setDepth(1001);
+            this.noShipsText.setOrigin(0.5, 0.5);
+            
+            // Position no ships text correctly within menu bounds
+            const noShipsScreenY = menuCenterY + yOffset;
+            this.noShipsText.x = menuX;
+            this.noShipsText.y = noShipsScreenY;
+            
+            // Instructions to go back
+            const instructionsMenuY = yOffset + 40;
+            const instructionsScreenY = menuCenterY + instructionsMenuY;
+            
+            this.tradeRunInstructions = this.scene.add.text(
+                menuX, instructionsScreenY, 
+                'Press ESC to go back', {
+                fontSize: '18px',
+                fill: '#ccc',
+                backgroundColor: '#000000',
+                padding: { x: 10, y: 5 }
+            });
+            this.tradeRunInstructions.setScrollFactor(0);
+            this.tradeRunInstructions.setDepth(1001);
+            this.tradeRunInstructions.setOrigin(0.5, 0.5);
+            
+            // Set up escape key only
+            this.tradeRunEscapeKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+            this.tradeRunEscapeKey.on('down', () => {
+                this.cleanupTradeRunMenu();
+                this.showMenu();
+            });
+        }
+        
+        // Show current gold
+        const goldScreenY = menuCenterY + 250;
+        this.tradeRunGoldText = this.scene.add.text(
+            menuX, goldScreenY, 
+            `Current Gold: ${this.scene.playerShip.gold}`, {
+            fontSize: '20px',
+            fill: '#ffd700',
+            backgroundColor: '#000000',
+            padding: { x: 10, y: 5 }
+        }
+        );
+        this.tradeRunGoldText.setScrollFactor(0);
+        this.tradeRunGoldText.setDepth(1001);
+        this.tradeRunGoldText.setOrigin(0.5, 0.5);
+    }
+
+    setupTradeRunControls(availableShips) {
+        // Set up keyboard controls
+        this.tradeRunUpKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP);
+        this.tradeRunDownKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN);
+        this.tradeRunEnterKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+        this.tradeRunEscapeKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+        
+        this.tradeRunControlHandler = () => {
+            if (Phaser.Input.Keyboard.JustDown(this.tradeRunUpKey)) {
+                this.selectedTradeRunShip = (this.selectedTradeRunShip - 1 + availableShips.length) % availableShips.length;
+                this.updateTradeRunShipSelection();
+            }
+            
+            if (Phaser.Input.Keyboard.JustDown(this.tradeRunDownKey)) {
+                this.selectedTradeRunShip = (this.selectedTradeRunShip + 1) % availableShips.length;
+                this.updateTradeRunShipSelection();
+            }
+            
+            if (Phaser.Input.Keyboard.JustDown(this.tradeRunEnterKey)) {
+                const selectedShip = availableShips[this.selectedTradeRunShip];
+                const shipType = Object.values(this.shipTypes || {}).find(type => type.name === selectedShip.name);
+                
+                if (shipType) {
+                    const success = this.scene.tradeRunSystem.startTradeRun(shipType);
+                    if (success) {
+                        this.cleanupTradeRunMenu();
+                        this.showMenu(); // Return to main menu after starting trade run
+                    }
+                }
+            }
+            
+            if (Phaser.Input.Keyboard.JustDown(this.tradeRunEscapeKey)) {
+                this.cleanupTradeRunMenu();
+                this.showMenu();
+            }
+        };
+        
+        this.scene.events.on('update', this.tradeRunControlHandler);
+    }
+
+    updateTradeRunShipSelection() {
+        if (this.tradeRunShips) {
+            this.tradeRunShips.forEach((shipText, index) => {
+                shipText.setStyle({
+                    fill: this.selectedTradeRunShip === index ? '#ffff00' : '#fff'
+                });
+            });
+        }
+    }
+
+    cleanupTradeRunMenu() {
+        // Clean up all trade run menu elements
+        if (this.tradeRunBackground) this.tradeRunBackground.destroy();
+        if (this.tradeRunTitle) this.tradeRunTitle.destroy();
+        if (this.tradeRunInstructions) this.tradeRunInstructions.destroy();
+        if (this.tradeRunGoldText) this.tradeRunGoldText.destroy();
+        
+        // Clean up header and message text elements
+        if (this.activeHeader) this.activeHeader.destroy();
+        if (this.availableHeader) this.availableHeader.destroy();
+        if (this.noShipsText) this.noShipsText.destroy();
+        
+        // Clean up active run text elements
+        if (this.activeRunTexts) {
+            this.activeRunTexts.forEach(runText => runText.destroy());
+            this.activeRunTexts = null;
+        }
+        
+        if (this.tradeRunShips) {
+            this.tradeRunShips.forEach(shipText => shipText.destroy());
+            this.tradeRunShips = null;
+        }
+        
+        // Clean up keyboard controls
+        if (this.tradeRunUpKey) this.tradeRunUpKey.destroy();
+        if (this.tradeRunDownKey) this.tradeRunDownKey.destroy();
+        if (this.tradeRunEnterKey) this.tradeRunEnterKey.destroy();
+        if (this.tradeRunEscapeKey) this.tradeRunEscapeKey.destroy();
+        
+        if (this.tradeRunControlHandler) {
+            this.scene.events.off('update', this.tradeRunControlHandler);
+            this.tradeRunControlHandler = null;
         }
     }
 }

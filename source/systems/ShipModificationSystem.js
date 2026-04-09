@@ -20,15 +20,17 @@ export class ShipModificationSystem {
         
         // Upgrade costs and values
         this.upgradeConfig = {
-            health: { cost: 50, value: 10, name: 'Health', description: '+10 max health' },
-            crew: { cost: 30, value: 5, name: 'Crew', description: '+5 max crew' },
-            cargo: { cost: 40, value: 50, name: 'Cargo', description: '+50 cargo capacity' },
-            sails: { cost: 60, value: 10, name: 'Sails & Speed', description: '+10 speed and sail integrity' },
-            rowing: { cost: 80, value: 20, name: 'Rowing', description: '+20 rowing power (galleys only)' }
+            health: { cost: 50, value: 0.05, name: 'Health', description: '+5% max health' },
+            crew: { cost: 30, value: 0.05, name: 'Crew', description: '+5% max crew' },
+            cargo: { cost: 40, value: 0.05, name: 'Cargo', description: '+5% cargo capacity' },
+            sails: { cost: 60, value: 0.05, name: 'Sails & Speed', description: '+5% speed and sail integrity' },
+            rowing: { cost: 80, value: 0.05, name: 'Rowing', description: '+5% rowing power (galleys only)' },
+            turnSpeed: { cost: 70, value: 0.05, name: 'Turn Speed', description: '+5% turn speed' },
+            cannons: { cost: 100, value: 0.05, name: 'Cannons', description: '+5% cannon count' }
         };
         
-        // Maximum upgrade level for each upgrade type
-        this.maxUpgradeLevel = 5;
+        // Maximum total upgrades per ship
+        this.maxTotalUpgrades = 20;
         
         // Track upgrades applied to each ship
         this.shipUpgrades = {};
@@ -67,7 +69,10 @@ export class ShipModificationSystem {
                 crew: 0,
                 cargo: 0,
                 sails: 0,
-                rowing: 0
+                rowing: 0,
+                turnSpeed: 0,
+                cannons: 0,
+                totalUpgrades: 0
             };
         }
         
@@ -163,7 +168,7 @@ export class ShipModificationSystem {
         
         // Title
         this.modificationTitle = this.scene.add.text(
-            width / 2, height / 2 - 250,
+            width / 2, height / 2 - 300,
             `Ship Modification - ${this.selectedShip.shipName}`,
             { fontSize: '24px', fill: '#ffffff', fontStyle: 'bold' }
         ).setOrigin(0.5);
@@ -243,9 +248,10 @@ export class ShipModificationSystem {
         const currentGold = this.scene.playerShip.gold;
         const currentLevel = this.shipUpgrades[this.selectedShipId][option.key];
         
-        // Check if upgrade is already at max level
-        if (currentLevel >= this.maxUpgradeLevel) {
-            this.showMessage(`${config.name} is already at maximum level!`);
+        // Check if ship has reached total upgrade limit
+        const totalUpgrades = this.shipUpgrades[this.selectedShipId].totalUpgrades;
+        if (totalUpgrades >= this.maxTotalUpgrades) {
+            this.showMessage(`This ship has reached the maximum upgrade limit of ${this.maxTotalUpgrades}!`);
             return;
         }
         
@@ -259,6 +265,14 @@ export class ShipModificationSystem {
         
         // Apply upgrade
         this.shipUpgrades[this.selectedShipId][option.key]++;
+        this.shipUpgrades[this.selectedShipId].totalUpgrades++;
+        
+        console.log('=== UPGRADE PURCHASED ===');
+        console.log('Ship ID:', this.selectedShipId);
+        console.log('Upgrade type:', option.key);
+        console.log('New upgrade level:', this.shipUpgrades[this.selectedShipId][option.key]);
+        console.log('Total upgrades:', this.shipUpgrades[this.selectedShipId].totalUpgrades);
+        console.log('All upgrades for this ship:', this.shipUpgrades[this.selectedShipId]);
         
         // Apply the upgrade to the actual ship if it's the current player ship
         console.log('Checking if upgrade should be applied to current ship:');
@@ -279,6 +293,8 @@ export class ShipModificationSystem {
         
         // Refresh the UI instead of closing and reopening
         this.refreshModificationUI();
+        
+        console.log('=== UPGRADE PURCHASE COMPLETE ===');
     }
     
     refreshModificationUI() {
@@ -305,16 +321,27 @@ export class ShipModificationSystem {
         
         // Ship info
         const upgrades = this.shipUpgrades[this.selectedShipId];
+        const healthBonus = Math.floor(this.selectedShip.maxHealth * upgrades.health * this.upgradeConfig.health.value);
+        const crewBonus = Math.floor(this.selectedShip.crewMax * upgrades.crew * this.upgradeConfig.crew.value);
+        const cargoBonus = Math.floor(this.selectedShip.cargoMax * upgrades.cargo * this.upgradeConfig.cargo.value);
+        const speedBonus = Math.floor(this.selectedShip.speed * upgrades.sails * this.upgradeConfig.sails.value);
+        const rowingBonus = Math.floor(this.selectedShip.rowing * upgrades.rowing * this.upgradeConfig.rowing.value);
+        const turnSpeedBonus = Math.floor(this.selectedShip.turnSpeed * upgrades.turnSpeed * this.upgradeConfig.turnSpeed.value);
+        const cannonsBonus = Math.max(2, Math.ceil(this.selectedShip.cannons * upgrades.cannons * this.upgradeConfig.cannons.value / 2) * 2);
+        
         this.shipInfoText = this.scene.add.text(
             width / 2, height / 2 - 200,
             `Type: ${this.selectedShip.name}\n` +
             `Gold: ${this.scene.playerShip.gold}\n` +
+            `Upgrades Used: ${upgrades.totalUpgrades}/${this.maxTotalUpgrades}\n` +
             `Current Stats:\n` +
-            `  Health: ${this.selectedShip.maxHealth + upgrades.health * this.upgradeConfig.health.value}\n` +
-            `  Crew: ${this.selectedShip.crewMax + upgrades.crew * this.upgradeConfig.crew.value}\n` +
-            `  Cargo: ${this.selectedShip.cargoMax + upgrades.cargo * this.upgradeConfig.cargo.value}\n` +
-            `  Speed: ${this.selectedShip.speed + upgrades.sails * this.upgradeConfig.sails.value}\n` +
-            `  Rowing: ${this.selectedShip.rowing + upgrades.rowing * this.upgradeConfig.rowing.value}`,
+            `  Health: ${this.selectedShip.maxHealth + healthBonus}\n` +
+            `  Crew: ${this.selectedShip.crewMax + crewBonus}\n` +
+            `  Cargo: ${this.selectedShip.cargoMax + cargoBonus}\n` +
+            `  Speed: ${this.selectedShip.speed + speedBonus}\n` +
+            `  Turn Speed: ${this.selectedShip.turnSpeed + turnSpeedBonus}\n` +
+            `  Cannons: ${this.selectedShip.cannons + cannonsBonus}\n` +
+            `  Rowing: ${this.selectedShip.rowing + rowingBonus}`,
             { fontSize: '14px', fill: '#cccccc' }
         ).setOrigin(0.5);
         this.shipInfoText.setScrollFactor(0);
@@ -345,8 +372,8 @@ export class ShipModificationSystem {
             background.setStrokeStyle(2, 0x444444);
             
             // Option text
-            const isMaxLevel = upgrades[key] >= this.maxUpgradeLevel;
-            const levelText = isMaxLevel ? `MAX LEVEL` : `Current level: ${upgrades[key]} | Cost: ${config.cost} gold`;
+            const isMaxLevel = upgrades.totalUpgrades >= this.maxTotalUpgrades;
+            const levelText = isMaxLevel ? `UPGRADE LIMIT REACHED` : `Current level: ${upgrades[key]} | Cost: ${config.cost} gold`;
             const textColor = isMaxLevel ? '#888888' : '#ffffff';
             
             const text = this.scene.add.text(
@@ -384,35 +411,52 @@ export class ShipModificationSystem {
             crew: ship.crew,
             cargoMax: ship.cargoMax,
             speed: ship.speed,
+            turnSpeed: ship.turnSpeed,
+            cannons: ship.cannons,
             rowing: ship.rowing
         });
         
         switch (upgradeType) {
             case 'health':
-                ship.maxHealth += value;
-                ship.health += value; // Also heal the ship
-                console.log(`Health upgraded: +${value} (new max: ${ship.maxHealth}, current: ${ship.health})`);
+                const healthIncrease = Math.floor(ship.maxHealth * value);
+                ship.maxHealth += healthIncrease;
+                ship.health += healthIncrease; // Also heal the ship
+                console.log(`Health upgraded: +${healthIncrease} (new max: ${ship.maxHealth}, current: ${ship.health})`);
                 break;
             case 'crew':
-                ship.crewMax += value;
-                ship.maxCrewHealth += value * 10;
-                ship.crewHealth += value * 10;
-                console.log(`Crew upgraded: +${value} (new max: ${ship.crewMax}, current: ${ship.crew})`);
+                const crewIncrease = Math.floor(ship.crewMax * value);
+                ship.crewMax += crewIncrease;
+                ship.maxCrewHealth += crewIncrease * 10;
+                ship.crewHealth += crewIncrease * 10;
+                console.log(`Crew upgraded: +${crewIncrease} (new max: ${ship.crewMax}, current: ${ship.crew})`);
                 break;
             case 'cargo':
-                ship.cargoMax += value;
-                console.log(`Cargo upgraded: +${value} (new max: ${ship.cargoMax})`);
+                const cargoIncrease = Math.floor(ship.cargoMax * value);
+                ship.cargoMax += cargoIncrease;
+                console.log(`Cargo upgraded: +${cargoIncrease} (new max: ${ship.cargoMax})`);
                 break;
             case 'sails':
-                ship.speed += value;
-                ship.maxSailIntegrity += value;
-                ship.sailIntegrity += value;
-                console.log(`Sails upgraded: +${value} speed (new speed: ${ship.speed})`);
+                const speedIncrease = Math.floor(ship.speed * value);
+                ship.speed += speedIncrease;
+                ship.maxSailIntegrity += speedIncrease;
+                ship.sailIntegrity += speedIncrease;
+                console.log(`Sails upgraded: +${speedIncrease} speed (new speed: ${ship.speed})`);
+                break;
+            case 'turnSpeed':
+                const turnSpeedIncrease = Math.floor(ship.turnSpeed * value);
+                ship.turnSpeed += turnSpeedIncrease;
+                console.log(`Turn Speed upgraded: +${turnSpeedIncrease} (new turn speed: ${ship.turnSpeed})`);
+                break;
+            case 'cannons':
+                const cannonsIncrease = Math.max(2, Math.ceil(ship.cannons * value / 2) * 2);
+                ship.cannons += cannonsIncrease;
+                console.log(`Cannons upgraded: +${cannonsIncrease} (new cannons: ${ship.cannons})`);
                 break;
             case 'rowing':
                 if (ship.isGalley === 1) {
-                    ship.rowing += value;
-                    console.log(`Rowing upgraded: +${value} (new rowing: ${ship.rowing})`);
+                    const rowingIncrease = Math.floor(ship.rowing * value);
+                    ship.rowing += rowingIncrease;
+                    console.log(`Rowing upgraded: +${rowingIncrease} (new rowing: ${ship.rowing})`);
                 } else {
                     console.log('Rowing upgrade skipped - not a galley');
                 }
@@ -426,6 +470,8 @@ export class ShipModificationSystem {
             crew: ship.crew,
             cargoMax: ship.cargoMax,
             speed: ship.speed,
+            turnSpeed: ship.turnSpeed,
+            cannons: ship.cannons,
             rowing: ship.rowing
         });
     }
@@ -453,29 +499,65 @@ export class ShipModificationSystem {
             crew: 0,
             cargo: 0,
             sails: 0,
-            rowing: 0
+            rowing: 0,
+            turnSpeed: 0,
+            cannons: 0,
+            totalUpgrades: 0
         };
     }
     
     applyUpgradesToShip(ship, shipId) {
         const upgrades = this.getShipUpgrades(shipId);
         
-        ship.maxHealth += upgrades.health * this.upgradeConfig.health.value;
-        ship.health += upgrades.health * this.upgradeConfig.health.value;
+        console.log('=== APPLYING UPGRADES TO SHIP ===');
+        console.log('Ship ID:', shipId);
+        console.log('Upgrades to apply:', upgrades);
+        console.log('Base ship stats before upgrades:', {
+            maxHealth: ship.shipType.maxHealth,
+            crewMax: ship.shipType.crewMax,
+            cargoMax: ship.shipType.cargoMax,
+            speed: ship.shipType.speed,
+            turnSpeed: ship.shipType.turnSpeed,
+            cannons: ship.shipType.cannons,
+            rowing: ship.shipType.rowing
+        });
         
-        ship.crewMax += upgrades.crew * this.upgradeConfig.crew.value;
-        ship.crew += upgrades.crew * this.upgradeConfig.crew.value;
-        ship.maxCrewHealth += upgrades.crew * this.upgradeConfig.crew.value * 10;
-        ship.crewHealth += upgrades.crew * this.upgradeConfig.crew.value * 10;
+        // Apply percentage-based upgrades using base ship stats from shipType
+        const healthIncrease = Math.floor(ship.shipType.maxHealth * upgrades.health * this.upgradeConfig.health.value);
+        ship.maxHealth = ship.shipType.maxHealth + healthIncrease;
+        ship.health = ship.shipType.maxHealth + healthIncrease;
         
-        ship.cargoMax += upgrades.cargo * this.upgradeConfig.cargo.value;
+        const crewIncrease = Math.floor(ship.shipType.crewMax * upgrades.crew * this.upgradeConfig.crew.value);
+        ship.crewMax = ship.shipType.crewMax + crewIncrease;
+        // Don't override current crew count - only increase max crew and health
+        if (ship.crew < ship.crewMax) {
+            ship.crew = ship.crewMax;
+        }
+        ship.maxCrewHealth = ship.maxCrewHealth + (crewIncrease * 10);
+        ship.crewHealth = ship.crewHealth + (crewIncrease * 10);
         
-        ship.speed += upgrades.sails * this.upgradeConfig.sails.value;
-        ship.maxSailIntegrity += upgrades.sails * this.upgradeConfig.sails.value;
-        ship.sailIntegrity += upgrades.sails * this.upgradeConfig.sails.value;
+        const cargoIncrease = Math.floor(ship.shipType.cargoMax * upgrades.cargo * this.upgradeConfig.cargo.value);
+        ship.cargoMax = ship.shipType.cargoMax + cargoIncrease;
+        
+        const speedIncrease = Math.floor(ship.shipType.speed * upgrades.sails * this.upgradeConfig.sails.value);
+        ship.speed = ship.shipType.speed + speedIncrease;
+        ship.maxSailIntegrity = ship.shipType.maxSailIntegrity + speedIncrease;
+        ship.sailIntegrity = ship.shipType.sailIntegrity + speedIncrease;
+        
+        const turnSpeedIncrease = Math.floor(ship.shipType.turnSpeed * upgrades.turnSpeed * this.upgradeConfig.turnSpeed.value);
+        ship.turnSpeed = ship.shipType.turnSpeed + turnSpeedIncrease;
+        
+        // Calculate total cannons by applying each upgrade level cumulatively
+        let totalCannons = ship.shipType.cannons;
+        for (let i = 0; i < upgrades.cannons; i++) {
+            const increase = Math.max(2, Math.ceil(totalCannons * this.upgradeConfig.cannons.value / 2) * 2);
+            totalCannons += increase;
+        }
+        ship.cannons = totalCannons;
         
         if (ship.isGalley === 1) {
-            ship.rowing += upgrades.rowing * this.upgradeConfig.rowing.value;
+            const rowingIncrease = Math.floor(ship.shipType.rowing * upgrades.rowing * this.upgradeConfig.rowing.value);
+            ship.rowing = ship.shipType.rowing + rowingIncrease;
         }
     }
 }
