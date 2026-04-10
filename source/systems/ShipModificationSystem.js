@@ -161,14 +161,14 @@ export class ShipModificationSystem {
         
         // Background
         this.modificationBackground = this.scene.add.rectangle(
-            width / 2, height / 2, 1000, 800, 0x1a1a1a, 0.95
+            width / 2, height / 2, 1050, 950, 0x1a1a1a, 0.95
         );
         this.modificationBackground.setScrollFactor(0);
         this.modificationBackground.setDepth(1100); // Higher than inventory
         
         // Title
         this.modificationTitle = this.scene.add.text(
-            width / 2, height / 2 - 300,
+            width / 2, height / 2 - 350,
             `Ship Modification - ${this.selectedShip.shipName}`,
             { fontSize: '24px', fill: '#ffffff', fontStyle: 'bold' }
         ).setOrigin(0.5);
@@ -181,9 +181,9 @@ export class ShipModificationSystem {
         
         // Instructions
         const instructions = this.scene.add.text(
-            width / 2, height / 2 + 250,
+            width / 2, height / 2 + 425,
             'Use UP/DOWN arrows to select, ENTER to purchase, ESC to close',
-            { fontSize: '20px', fill: '#ffff00' }
+            { fontSize: '28px', fill: '#ffff00' }
         ).setOrigin(0.5);
         instructions.setScrollFactor(0);
         instructions.setDepth(1101); // Higher than inventory
@@ -330,7 +330,7 @@ export class ShipModificationSystem {
         const cannonsBonus = Math.max(2, Math.ceil(this.selectedShip.cannons * upgrades.cannons * this.upgradeConfig.cannons.value / 2) * 2);
         
         this.shipInfoText = this.scene.add.text(
-            width / 2, height / 2 - 200,
+            width / 2, height / 2 - 250,
             `Type: ${this.selectedShip.name}\n` +
             `Gold: ${this.scene.playerShip.gold}\n` +
             `Upgrades Used: ${upgrades.totalUpgrades}/${this.maxTotalUpgrades}\n` +
@@ -352,16 +352,17 @@ export class ShipModificationSystem {
         const { width, height } = this.scene.cameras.main;
         const upgrades = this.shipUpgrades[this.selectedShipId];
         
-        // Create upgrade options
+        // Create upgrade options with rowing at the bottom
         const upgradeKeys = Object.keys(this.upgradeConfig);
-        upgradeKeys.forEach((key, index) => {
+        const regularUpgrades = upgradeKeys.filter(key => key !== 'rowing');
+        const rowingUpgrade = upgradeKeys.find(key => key === 'rowing');
+        
+        let index = 0;
+        
+        // Add regular upgrades first
+        regularUpgrades.forEach(key => {
             const config = this.upgradeConfig[key];
-            const y = height / 2 - 50 + (index * 80);
-            
-            // Skip rowing for non-galley ships
-            if (key === 'rowing' && this.selectedShip.isGalley !== 1) {
-                return;
-            }
+            const y = height / 2 - 100 + (index * 80);
             
             // Background for option
             const background = this.scene.add.rectangle(
@@ -392,7 +393,45 @@ export class ShipModificationSystem {
                 costText: null,
                 y: y
             });
+            
+            index++;
         });
+        
+        // Add rowing upgrade at the bottom (only for galley ships)
+        if (rowingUpgrade && this.selectedShip.isGalley === 1) {
+            const config = this.upgradeConfig[rowingUpgrade];
+            const y = height / 2 - 100 + (index * 80);
+            
+            // Background for option
+            const background = this.scene.add.rectangle(
+                width / 2, y, 700, 60, 0x2a2a2a, 0.8
+            );
+            background.setScrollFactor(0);
+            background.setDepth(1100); // Higher than inventory
+            background.setStrokeStyle(2, 0x444444);
+            
+            // Option text
+            const isMaxLevel = upgrades.totalUpgrades >= this.maxTotalUpgrades;
+            const levelText = isMaxLevel ? `UPGRADE LIMIT REACHED` : `Current level: ${upgrades[rowingUpgrade]} | Cost: ${config.cost} gold`;
+            const textColor = isMaxLevel ? '#888888' : '#ffffff';
+            
+            const text = this.scene.add.text(
+                width / 2 - 300, y - 20,
+                `${config.name}: ${config.description}\n` +
+                levelText,
+                { fontSize: '16px', fill: textColor }
+            );
+            text.setScrollFactor(0);
+            text.setDepth(1101); // Higher than inventory
+            
+            this.upgradeOptions.push({
+                key: rowingUpgrade,
+                text: text,
+                background: background,
+                costText: null,
+                y: y
+            });
+        }
         
         // Update selection display
         this.updateUpgradeSelection();

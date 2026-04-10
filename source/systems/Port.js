@@ -163,7 +163,7 @@ export class Port extends Obstacle {
                     // Player is out of contact if they're beyond the port bounds plus buffer
                     const maxDimension = Math.max(this.width, this.height);
                     // Account for ship size in distance calculation - larger ships need more space
-                    const shipSizeBuffer = currentPlayerShip.size / 2 +200; // Half of ship size as buffer
+                    const shipSizeBuffer = currentPlayerShip.size / 2; // Half of ship size as buffer
                     const exitDistance = maxDimension + 100 + shipSizeBuffer; // Port size + 100px + ship size buffer
                     
                     if (distance > exitDistance) {
@@ -173,7 +173,7 @@ export class Port extends Obstacle {
                         this.hideContactPopup();
                         // Don't close menu if player is actively using it
                         // Only close menu if player moves far away (double the normal distance)
-                        const farDistance = maxDimension + 300 + shipSizeBuffer; // Port size + 300px + ship size buffer
+                        const farDistance = maxDimension + 100 + shipSizeBuffer; // Port size + 300px + ship size buffer
                         if (distance > farDistance && this.menuActive) {
                             this.hideMenu();
                         }
@@ -336,7 +336,7 @@ export class Port extends Obstacle {
         // Calculate maximum interaction distance (same as entry radius)
         const maxDimension = Math.max(this.width, this.height);
         const shipSize = currentPlayerShip.size || 50;
-        const maxInteractionDistance = (maxDimension / 2) + (shipSize / 2) + 50; // Same as exit radius
+        const maxInteractionDistance = (maxDimension / 2) + (shipSize / 2) + 150; // Same as exit radius
         
         if (distance > maxInteractionDistance) {
             console.log(`Port ${this.portName}: Player too far to access menu (${distance}px > ${maxInteractionDistance}px)`);
@@ -1175,7 +1175,7 @@ Total Cost: 0 gold`
         this.buyTitle = buyTitle; // Store for cleanup
         
         // Define available ships for purchase (exclude ship w/o models and already owned ships)
-        const excludedShips = this.debugMode ? [] : ['HMS_VICTORY', 'ORIENT', 'SANTTÌSIMA_TRINIDAD', 'URCA_DE_LIMA'];
+        const excludedShips = this.debugMode ? [] : [];
         const playerOwnedShips = this.debugMode ? [] : (this.scene.playerShip.ownedShips || ['SLOOP']); // Default to Sloop if no owned ships
         
         this.availableShips = Object.entries(SHIP_TYPES).filter(([key, ship]) => 
@@ -2651,7 +2651,7 @@ Total Cost: 0 gold`
                 // Calculate maximum interaction distance
                 const maxDimension = Math.max(this.width, this.height);
                 const shipSize = currentPlayerShip.size || 50;
-                const maxInteractionDistance = (maxDimension / 2) + (shipSize / 2) + 50;
+                const maxInteractionDistance = (maxDimension / 2) + (shipSize / 2)+150;
                 
                 if (distance <= maxInteractionDistance) {
                     console.log('Port: C key pressed, opening menu for', this.portName);
