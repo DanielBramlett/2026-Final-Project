@@ -20,6 +20,12 @@ export default class TradeRunSystem {
             return false;
         }
 
+        // Remove ship from owned ships list when sent on trade run
+        const shipIndex = this.scene.playerShip.ownedShips.indexOf(shipKey);
+        if (shipIndex > -1) {
+            this.scene.playerShip.ownedShips.splice(shipIndex, 1);
+        }
+
         // Calculate cost based on ship's cargo capacity
         const cost = shipType.cargoMax;
         
@@ -69,6 +75,16 @@ export default class TradeRunSystem {
                 
                 // Give reward to player
                 this.scene.playerShip.gold += tradeRun.reward;
+                
+                // Return ship to owned ships list
+                const shipKey = Object.keys(this.shipTypes).find(key => 
+                    this.shipTypes[key].name === tradeRun.shipType.name
+                );
+                
+                if (shipKey && !this.scene.playerShip.ownedShips.includes(shipKey)) {
+                    this.scene.playerShip.ownedShips.push(shipKey);
+                    console.log(`${tradeRun.shipType.name} returned to fleet`);
+                }
                 
                 console.log(`Trade run completed! ${tradeRun.shipType.name} returned with ${tradeRun.reward} gold!`);
                 

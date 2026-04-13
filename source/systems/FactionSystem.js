@@ -235,4 +235,18 @@ export default class FactionSystem {
         this.currentFaction = null;
         console.log('Faction reset to none');
     }
+
+    // Save system methods
+    getSaveData() {
+        return {
+            currentFaction: this.currentFaction ? this.currentFaction.name : null
+        };
+    }
+
+    restoreSaveData(saveData) {
+        if (saveData && saveData.currentFaction) {
+            this.setFaction(saveData.currentFaction);
+            console.log(`Faction restored: ${saveData.currentFaction}`);
+        }
+    }
 }

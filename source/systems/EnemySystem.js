@@ -16,7 +16,7 @@ export default class EnemySystem {
         
         // Obstacle avoidance configuration
         this.obstacleDetectionRange = 500; // Range to detect obstacles (increased from 300)
-        this.avoidanceStrength = 0.8; // Strength of avoidance steering (increased from 0.7)
+        this.avoidanceStrength = 0.3; // Strength of avoidance steering (increased from 0.7)
         this.obstacleCheckAngles = 16; // Number of angles to check for obstacles (increased from 9)
     }
 
@@ -24,10 +24,8 @@ export default class EnemySystem {
         this.enemyShips = [];
         this.spawnEnemyShip(SHIP_TYPES.SLOOP);
         this.spawnEnemyShip(SHIP_TYPES.SLOOP);
-        this.spawnEnemyShip(SHIP_TYPES.SLOOP);
-        this.spawnEnemyShip(SHIP_TYPES.GALLEON);
-        this.spawnEnemyShip(SHIP_TYPES.FIRST_RATE);
-        this.spawnEnemyShip(SHIP_TYPES.DUKE_OF_KENT);
+        this.spawnEnemyShip(SHIP_TYPES.ADVENTURE);
+        this.spawnEnemyShip(SHIP_TYPES.WHYDAH)
         return this.enemyShips;
     }
 
@@ -117,6 +115,9 @@ export default class EnemySystem {
         
         // Create the enemy ship at the valid position
         const enemyShip = new Ship(this.scene, x, y, shipType);
+        
+        // Assign unique ID to enemy ship for boarding tracking
+        enemyShip.id = `enemy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         
         // Assign random faction to enemy ship
         if (this.scene.factionSystem) {
@@ -324,6 +325,23 @@ export default class EnemySystem {
     }
 
     shouldFire(enemyShip, target, distance) {
+        // Prevent firing during boarding - comprehensive check
+        if (this.scene.combatSystem.areBoardingControlsDisabled()) {
+            console.log(`? Enemy ${enemyShip.shipType.name} cannot fire - boarding controls disabled!`);
+            return false;
+        }
+        
+        // Prevent firing during boarding (both attacker and target)
+        if (this.scene.combatSystem.isShipBoarding(enemyShip)) {
+            console.log(`? Enemy ${enemyShip.shipType.name} cannot fire - involved in boarding!`);
+            return false;
+        }
+        
+        if (this.scene.combatSystem.isShipBoarding(target)) {
+            console.log(`? Cannot fire at ${target.shipType.name || 'player'} - target is involved in boarding!`);
+            return false;
+        }
+        
         // Check if target is within fire range
         if (distance > this.fireRange) {
             return false;
@@ -584,5 +602,23 @@ export default class EnemySystem {
         this.enemyShips.forEach(enemyShip => {
             this.updateEnemyAI(enemyShip, time, delta);
         });
+    }
+
+    // Save system methods
+    getSaveData() {
+        // For now, we'll just save basic enemy count info
+        // In a more complex implementation, we might save individual enemy states
+        return {
+            enemyCount: this.enemyShips.filter(ship => !ship.destroyed).length,
+            maxEnemies: this.maxEnemies
+        };
+    }
+
+    restoreSaveData(saveData) {
+        // For now, we'll just log the restore
+        // In a more complex implementation, we might restore individual enemies
+        if (saveData) {
+            console.log(`Enemy system restored: ${saveData.enemyCount} enemies`);
+        }
     }
 }

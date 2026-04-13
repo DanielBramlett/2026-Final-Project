@@ -25,6 +25,7 @@ export default class PlayerSystem {
             shipType,
         );
         this.playerShip.isPlayer = true; // Mark as player ship for red hitbox
+        this.playerShip.id = 'player'; // Assign ID for boarding tracking
         
         // Apply faction speed and turn speed buffs if French
         if (this.scene.factionSystem) {
@@ -71,11 +72,7 @@ export default class PlayerSystem {
             return;
         }
         
-        // Skip all input if player is sunk (wreckage system handles this)
-        if (this.scene && this.scene.wreckageSystem && this.scene.wreckageSystem.areControlsDisabled()) {
-            return;
-        }
-        
+                
         if (this.keys.i.isDown && this.infoBoxToggleDelay <= 0) {
             this.infoBoxVisible = !this.infoBoxVisible;
             this.scene.infoText.setVisible(this.infoBoxVisible);
@@ -220,6 +217,7 @@ export default class PlayerSystem {
         // Create new player ship at spawn position
         this.playerShip = new Ship(this.scene, spawnX, spawnY, newShipType);
         this.playerShip.isPlayer = true; // Mark as player ship for red hitbox
+        this.playerShip.id = 'player'; // Assign ID for boarding tracking
         
         // Apply any upgrades to the new ship first (using base stats)
         this.applyShipUpgrades(currentShipId);
@@ -269,11 +267,7 @@ export default class PlayerSystem {
         this.scene.ammoUI.playerShip = this.playerShip;
         this.scene.statsUI.playerShip = this.playerShip;
         
-        // Update wreckage system to reference the new player ship
-        if (this.scene.wreckageSystem) {
-            this.scene.wreckageSystem.updatePlayerShip(this.playerShip);
-        }
-        
+                
         // Update collisions with new player ship using enhanced collision handler
         this.scene.physics.add.overlap(this.playerShip, this.scene.islands, this.scene.handleShipCollision, null, this.scene);
         this.scene.physics.add.overlap(this.playerShip, this.scene.ports, this.scene.handleShipCollision, null, this.scene);
@@ -712,11 +706,6 @@ export default class PlayerSystem {
     }
 
     fireCannons(side = 'both') {
-        // Prevent firing if player is sunk
-        if (this.scene && this.scene.wreckageSystem && this.scene.wreckageSystem.areControlsDisabled()) {
-            console.log('Cannot fire cannons - player ship is sunk!');
-            return;
-        }
         
         if (!this.playerShip.canFireCannons()) {
             console.log('No ammo available!');
@@ -735,11 +724,6 @@ export default class PlayerSystem {
     }
 
     attemptBoarding() {
-        // Prevent boarding if player is sunk
-        if (this.scene && this.scene.wreckageSystem && this.scene.wreckageSystem.areControlsDisabled()) {
-            console.log('Cannot board - player ship is sunk!');
-            return;
-        }
         
         // Find the closest enemy ship within boarding range
         let closestEnemy = null;

@@ -1,9 +1,11 @@
 import FactionSystem from '../systems/FactionSystem.js';
+import SaveSystem from '../systems/SaveSystem.js';
 
 export default class StartScene extends Phaser.Scene {
     constructor() {
         super('StartScene');
         this.selectedFaction = null;
+        this.saveSystem = null;
     }
 
     preload() {
@@ -16,6 +18,9 @@ export default class StartScene extends Phaser.Scene {
 
         // Initialize faction system
         this.factionSystem = new FactionSystem(this);
+
+        // Initialize save system (for checking save files)
+        this.saveSystem = new SaveSystem(this);
 
         // Add background
         this.add.rectangle(width/2, height/2, width, height, 0x1a472a);
@@ -135,6 +140,34 @@ export default class StartScene extends Phaser.Scene {
         this.startButton.on('pointerdown', () => {
             this.startGame();
         });
+
+        // Load Game button (only show if save file exists)
+        this.loadButton = this.add.text(width/2, height/2 + 180, 'LOAD GAME', {
+            fontSize: '36px',
+            fontFamily: 'Arial',
+            fill: '#ffffff',
+            backgroundColor: '#4169e1',
+            padding: { x: 30, y: 15 },
+            stroke: '#000000',
+            strokeThickness: 3
+        }).setOrigin(0.5).setVisible(false);
+
+        this.loadButton.setInteractive({ useHandCursor: true });
+
+        this.loadButton.on('pointerover', () => {
+            this.loadButton.setStyle({ fill: '#ffff00', backgroundColor: '#6495ed' });
+        });
+
+        this.loadButton.on('pointerout', () => {
+            this.loadButton.setStyle({ fill: '#ffffff', backgroundColor: '#4169e1' });
+        });
+
+        this.loadButton.on('pointerdown', () => {
+            this.loadGame();
+        });
+
+        // Check for save file and show load button if exists
+        this.checkForSaveFile();
     }
 
     selectFaction(factionKey) {
@@ -169,6 +202,56 @@ export default class StartScene extends Phaser.Scene {
         // Pass the faction system to the GameScene through registry
         this.registry.set('factionSystem', this.factionSystem);
         this.scene.start('GameScene');
+    }
+
+    checkForSaveFile() {
+        if (this.saveSystem.hasSaveFile()) {
+            const saveInfo = this.saveSystem.getSaveInfo();
+            if (saveInfo) {
+                // Show load button
+                this.loadButton.setVisible(true);
+                
+                // Add save info text
+                const saveInfoText = this.add.text(this.cameras.main.width/2, this.cameras.main.height/2 + 230, 
+                    `Save: ${saveInfo.date} | Ship: ${saveInfo.shipType} | Gold: ${saveInfo.gold}`, {
+                    fontSize: '16px',
+                    fontFamily: 'Arial',
+                    fill: '#ffffff',
+                    align: 'center'
+                }).setOrigin(0.5);
+                
+                this.saveInfoText = saveInfoText;
+            }
+        }
+    }
+
+    loadGame() {
+        if (!this.saveSystem.hasSaveFile()) {
+            console.log('No save file found!');
+            return;
+        }
+
+        try {
+            // Load the save data
+            const saveString = localStorage.getItem('pirateGameSave');
+            const saveData = JSON.parse(saveString);
+            
+            // Restore faction from save data
+            if (saveData.factionData && saveData.factionData.currentFaction) {
+                this.factionSystem.setFaction(saveData.factionData.currentFaction);
+            }
+            
+            // Pass systems to GameScene through registry
+            this.registry.set('factionSystem', this.factionSystem);
+            this.registry.set('saveData', saveData);
+            
+            // Start GameScene with saved data
+            this.scene.start('GameScene');
+            
+            console.log('Game loaded successfully!');
+        } catch (error) {
+            console.error('Failed to load game:', error);
+        }
     }
 
     createDecorativeElements(width, height) {

@@ -522,7 +522,7 @@ export const SHIP_TYPES = {
 
         isGalley: 1,
 
-        image: 'Galloit_East',
+        image: 'Galloit_East_1',
 
         hitboxScaleX: 0.275,
 
@@ -666,7 +666,7 @@ export const SHIP_TYPES = {
 
         isGalley: 1,
 
-        image: 'Light_Galley_East',
+        image: 'Light_Galley_East_1',
 
         hitboxScaleX: 0.26,
 
@@ -692,7 +692,7 @@ export const SHIP_TYPES = {
 
         turnSpeed: 180,
 
-        cannons: 40,
+        cannons: 36,
 
         crew: 150,
 
@@ -724,6 +724,45 @@ export const SHIP_TYPES = {
 
      },
 
+     QUEEN_ANNES_REVENGE: {
+
+        name: 'Queen_Annes_Revenge',
+
+        size: 850,
+
+        speed: 200,
+
+        rowing: 0,
+
+        turnSpeed: 180,
+
+        cannons: 40,
+
+        crew: 150,
+
+        crewMax: 150,
+
+        health: 400,
+
+        maxHealth: 400,
+
+        sailIntegrity: 200,
+
+        maxSailIntegrity: 200,
+
+        cargo: 0,
+
+        cargoMax: 1250,
+
+        windResistance: 0.75,
+
+        isGalley: 0,
+
+        image: 'Queen_Annes_Revenge_East',
+
+        hitboxScaleX: 0.232,
+     },
+
      FOURTH_RATE: {
 
         name: 'Fourth_Rate',
@@ -742,7 +781,7 @@ export const SHIP_TYPES = {
 
         crewMax: 350,
 
-        health: 340,
+        health: 350,
 
         maxHealth: 350,   
         
@@ -812,6 +851,83 @@ export const SHIP_TYPES = {
 
     },
 
+    WHYDAH:{
+
+        name:'Whydah',
+
+        size: 900,
+
+        speed: 125,
+
+        rowing: 175,
+
+        turnSpeed: 150,
+
+        cannons: 28,
+
+        crew: 150,
+
+        crewMax: 150,
+
+        health: 500,
+
+        maxHealth: 500,
+
+        sailIntegrity: 150,
+
+        maxSailIntegrity: 150,
+
+        cargo: 0,
+
+        cargoMax: 1750,
+
+        windResistance: .08,
+
+        isGalley: 1,
+
+        image: 'Whydah_East_1',
+
+        hitboxScaleX: 0.225,
+    },
+
+    ADVENTURE: {
+        name: 'Adventure',
+
+        size: 900,
+        
+        speed: 175,
+
+        rowing: 200,
+
+        turnSpeed: 150,
+
+        cannons: 32,
+
+        crew: 150,
+
+        crewMax: 150,
+
+        health: 350,
+
+        maxHealth: 350,
+
+        sailIntegrity: 125,
+
+        maxSailIntegrity: 125,
+
+        cargo: 0,
+
+        cargoMax: 1500,
+
+        windResistance: .08,
+
+        isGalley: 1,
+
+        image: 'Adventure_East_1',
+
+        hitboxScaleX: 0.21,
+    },
+
     GALLEY:{
 
         name: 'Galley',
@@ -846,7 +962,7 @@ export const SHIP_TYPES = {
 
         isGalley: 1,
 
-        image: 'Galley_East',
+        image: 'Galley_East_1',
 
         hitboxScaleX: 0.23,
 
@@ -937,6 +1053,8 @@ export const SHIP_TYPES = {
         windResistance: 0.6,
 
         isGalley: 1,
+
+        image: 'Galleass_East_1',
 
         hitboxScaleX: 0.195,
 
@@ -1134,7 +1252,7 @@ export const SHIP_TYPES = {
 
     },
 
-    SANTTÌSIMA_TRINIDAD: {
+    SANTÍSIMA_TRINIDAD: {
 
         name: 'Santísima_Trinidad',
 

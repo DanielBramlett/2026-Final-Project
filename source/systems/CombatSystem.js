@@ -15,6 +15,9 @@ export default class CombatSystem {
         this.boardingDuration = 3000; // Duration of boarding combat in milliseconds
         this.boardingCooldown = {}; // Track cooldown for each ship
         this.boardingCooldownTime = 5000; // 5 seconds cooldown between boarding attempts
+        this.boardingShips = new Set(); // Track ships currently involved in boarding
+        this.boardingInProgress = false; // Track if boarding is currently in progress
+        this.controlsDisabled = false; // Track if controls are disabled due to boarding
     }
 
     setSelectedAmmo(ammoType) {
@@ -26,9 +29,14 @@ export default class CombatSystem {
     }
 
     fireCannon(ship, side = 'both') {
-        // Existing cannon firing code remains unchanged
         const currentTime = Date.now();
         const shipId = ship.isPlayer ? 'player' : ship.id;
+        
+        // Prevent firing during boarding - comprehensive check
+        if (this.controlsDisabled || this.isShipBoarding(ship)) {
+            console.log(`🚫 Cannot fire cannons - boarding in progress or ${shipId} is involved in boarding!`);
+            return false;
+        }
         
         console.log(`🚢 Attempting to fire ${side} side. Selected ammo: ${this.selectedAmmo}, Available: ${ship.tradeGoods[this.selectedAmmo] || 0}`);
         
@@ -97,9 +105,19 @@ export default class CombatSystem {
         }
         
         const attackerId = attacker.isPlayer ? 'player' : attacker.id;
+        const targetId = target.isPlayer ? 'player' : target.id;
         this.boardingCooldown[attackerId] = Date.now();
         
+        // Add both ships to boarding set
+        this.boardingShips.add(attackerId);
+        this.boardingShips.add(targetId);
+        
+        // Set boarding state and disable controls
+        this.boardingInProgress = true;
+        this.disableBoardingControls();
+        
         console.log(`⚔️ ${attacker.isPlayer ? 'PLAYER' : 'ENEMY'} initiating boarding on ${target.shipType.name}!`);
+        console.log(`🚫 Boarding ships locked: ${Array.from(this.boardingShips).join(', ')}`);
         
         const boardingMessage = attacker.isPlayer ? 
             "BOARDING ACTION! Crew combat in progress..." : 
@@ -107,10 +125,6 @@ export default class CombatSystem {
             
         this.showBoardingMessage(boardingMessage, attacker.isPlayer);
         this.scene.sound.play('wood_breaking');
-        
-        if (attacker.isPlayer) {
-            this.scene.playerSystem.movementDisabled = true;
-        }
         
         setTimeout(() => {
             this.resolveBoarding(attacker, target);
@@ -136,9 +150,17 @@ export default class CombatSystem {
             this.handleBoardingFailure(attacker, target);
         }
         
-        if (attacker.isPlayer) {
-            this.scene.playerSystem.movementDisabled = false;
-        }
+        // Remove both ships from boarding set
+        const attackerId = attacker.isPlayer ? 'player' : attacker.id;
+        const targetId = target.isPlayer ? 'player' : target.id;
+        this.boardingShips.delete(attackerId);
+        this.boardingShips.delete(targetId);
+        
+        // Re-enable controls after boarding
+        this.boardingInProgress = false;
+        this.enableBoardingControls();
+        
+        console.log(`✅ Boarding completed. Ships removed from boarding lock: ${attackerId}, ${targetId}`);
     }
 
     calculateCrewStrength(ship) {
@@ -168,18 +190,18 @@ export default class CombatSystem {
                 }
             });
             
-            let boardingDamage = 15 + Math.floor(Math.random() * 10);
+            let boardingDamage = Math.max(1, Math.floor(target.crew * 0.1));
             
             // Apply faction boarding damage buff
             if (this.scene.factionSystem) {
                 if (attacker.isPlayer) {
                     // Player boarding - use player's faction
                     boardingDamage = this.scene.factionSystem.getModifiedBoardingDamage(boardingDamage);
-                    console.log(`Player boarding damage buff applied: ${15 + Math.floor(Math.random() * 10)} -> ${boardingDamage}`);
+                    console.log(`Player boarding damage buff applied: ${Math.max(1, Math.floor(target.crew * 0.1))} -> ${boardingDamage}`);
                 } else if (attacker.faction) {
                     // Enemy boarding - use enemy's faction
                     boardingDamage = this.scene.factionSystem.getModifiedBoardingDamageForFaction(boardingDamage, attacker.faction);
-                    console.log(`Enemy boarding damage buff applied (${attacker.faction.displayName}): ${15 + Math.floor(Math.random() * 10)} -> ${boardingDamage}`);
+                    console.log(`Enemy boarding damage buff applied (${attacker.faction.displayName}): ${Math.max(1, Math.floor(target.crew * 0.1))} -> ${boardingDamage}`);
                 }
             }
             
@@ -200,18 +222,18 @@ export default class CombatSystem {
             const goldLost = Math.floor(target.gold * 0.2);
             target.gold -= goldLost;
             
-            let boardingDamage = 12 + Math.floor(Math.random() * 8);
+            let boardingDamage = Math.max(1, Math.floor(target.crew * 0.1));
             
             // Apply faction boarding damage buff
             if (this.scene.factionSystem) {
                 if (attacker.isPlayer) {
                     // Player boarding - use player's faction
                     boardingDamage = this.scene.factionSystem.getModifiedBoardingDamage(boardingDamage);
-                    console.log(`Player boarding damage buff applied (enemy): ${12 + Math.floor(Math.random() * 8)} -> ${boardingDamage}`);
+                    console.log(`Player boarding damage buff applied (enemy): ${Math.max(1, Math.floor(target.crew * 0.1))} -> ${boardingDamage}`);
                 } else if (attacker.faction) {
                     // Enemy boarding - use enemy's faction
                     boardingDamage = this.scene.factionSystem.getModifiedBoardingDamageForFaction(boardingDamage, attacker.faction);
-                    console.log(`Enemy boarding damage buff applied (${attacker.faction.displayName}): ${12 + Math.floor(Math.random() * 8)} -> ${boardingDamage}`);
+                    console.log(`Enemy boarding damage buff applied (${attacker.faction.displayName}): ${Math.max(1, Math.floor(target.crew * 0.1))} -> ${boardingDamage}`);
                 }
             }
             
@@ -224,11 +246,13 @@ export default class CombatSystem {
     handleBoardingFailure(attacker, target) {
         console.log(`💀 ${attacker.isPlayer ? 'PLAYER' : 'ENEMY'} lost the boarding action!`);
         
+        const failureDamage = Math.max(1, Math.floor(attacker.crew * 0.1));
+        
         if (attacker.isPlayer) {
-            attacker.takeBoardingDamage(20);
+            attacker.takeBoardingDamage(failureDamage);
             this.showBoardingMessage("Boarding Failed! Lost crew in the attempt!", true);
         } else {
-            attacker.takeBoardingDamage(15);
+            attacker.takeBoardingDamage(failureDamage);
             this.showBoardingMessage("Enemy boarding repelled!", false);
         }
     }
@@ -414,6 +438,16 @@ export default class CombatSystem {
         const projectileSpeed = this.getProjectileSpeed(ammoType);
         let projectileDamage = this.getProjectileDamage(ammoType);
         const projectileColor = this.getProjectileColor(ammoType);
+        
+        // Apply cannon type damage multiplier if ship has one
+        console.log(`🔫 Checking cannon damage multiplier for ship: ${ship.cannonType}, multiplier: ${ship.cannonDamageMultiplier}`);
+        if (ship.cannonDamageMultiplier) {
+            const originalDamage = projectileDamage;
+            projectileDamage = Math.floor(projectileDamage * ship.cannonDamageMultiplier);
+            console.log(`🔫 Cannon type damage multiplier applied: ${ship.cannonType} (${ship.cannonDamageMultiplier}x) -> ${originalDamage} -> ${projectileDamage}`);
+        } else {
+            console.log(`🔫 No cannon damage multiplier found on ship`);
+        }
         
         // Apply faction damage bonus
         if (this.scene.factionSystem) {
@@ -780,5 +814,64 @@ export default class CombatSystem {
             chainshot: ship.tradeGoods.chainshot,
             grapeshot: ship.tradeGoods.grapeshot
         };
+    }
+
+    isShipBoarding(ship) {
+        const shipId = ship.isPlayer ? 'player' : ship.id;
+        return this.boardingShips.has(shipId);
+    }
+
+    getBoardingShips() {
+        return Array.from(this.boardingShips);
+    }
+
+    disableBoardingControls() {
+        if (this.controlsDisabled) {
+            return;
+        }
+
+        this.controlsDisabled = true;
+        
+        // Disable player system input handling
+        if (this.scene.playerSystem) {
+            this.scene.playerSystem.movementDisabled = true;
+        }
+
+        // Disable all keyboard input
+        if (this.scene.input && this.scene.input.keyboard) {
+            this.scene.input.keyboard.enabled = false;
+        }
+
+        // Disable mouse input
+        if (this.scene.input) {
+            this.scene.input.enabled = false;
+        }
+
+        console.log('🔒 All controls disabled due to boarding');
+    }
+
+    enableBoardingControls() {
+        if (!this.controlsDisabled) {
+            return;
+        }
+
+        this.controlsDisabled = false;
+
+        // Re-enable keyboard input
+        if (this.scene.input && this.scene.input.keyboard) {
+            this.scene.input.keyboard.enabled = true;
+        }
+        if (this.scene.input) {
+            this.scene.input.enabled = true;
+        }
+        if (this.scene.playerSystem) {
+            this.scene.playerSystem.movementDisabled = false;
+        }
+
+        console.log('🔓 All controls re-enabled after boarding');
+    }
+
+    areBoardingControlsDisabled() {
+        return this.controlsDisabled;
     }
 }

@@ -18,7 +18,7 @@ export default class StatsUI {
             startX + 100,
             startY + 40,
             300,
-            300,
+            350,
             0x000000,
             0.8
         );
@@ -84,6 +84,20 @@ export default class StatsUI {
         this.uiElements.sailsText.setScrollFactor(0);
         this.uiElements.sailsText.setDepth(1001);
 
+        this.uiElements.foodText = this.scene.add.text(
+            startX - 10,
+            startY + 35 + lineHeight * 3,
+            '',
+            {
+                fontSize: '24px',
+                fill: '#fff',
+                backgroundColor: '#000000',
+                padding: { x: 4, y: 2 }
+            }
+        );
+        this.uiElements.foodText.setScrollFactor(0);
+        this.uiElements.foodText.setDepth(1001);
+
         // Update initial display
         this.update();
     }
@@ -106,6 +120,33 @@ export default class StatsUI {
         const sailsColor = sailsRatio > 0.5 ? '#fff' : sailsRatio > 0.25 ? '#ffff00' : '#ff0000';
         this.uiElements.sailsText.setText(`Sails: ${this.playerShip.sailIntegrity}/${this.playerShip.maxSailIntegrity}`);
         this.uiElements.sailsText.setStyle({ fill: sailsColor });
+
+        // Update food/sailing days text
+        const food = this.playerShip.tradeGoods.food || 0;
+        const crew = this.playerShip.crew || 0;
+        const dailyConsumption = crew / 10;
+        const sailingDays = dailyConsumption > 0 ? food / dailyConsumption : 0;
+        
+        let foodDisplayText;
+        let foodColor;
+        
+        if (sailingDays <= 0) {
+            foodDisplayText = 'Food: No food!';
+            foodColor = '#ff0000';
+        } else if (sailingDays < 1) {
+            const hours = Math.floor(sailingDays * 24);
+            foodDisplayText = `Food: ${hours}h left`;
+            foodColor = '#ff0000';
+        } else if (sailingDays < 7) {
+            foodDisplayText = `Food: ${sailingDays.toFixed(1)}d left`;
+            foodColor = '#ffff00';
+        } else {
+            foodDisplayText = `Food: ${Math.floor(sailingDays)}d left`;
+            foodColor = '#fff';
+        }
+        
+        this.uiElements.foodText.setText(foodDisplayText);
+        this.uiElements.foodText.setStyle({ fill: foodColor });
     }
 
     destroy() {

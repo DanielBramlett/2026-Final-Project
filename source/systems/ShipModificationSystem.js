@@ -26,8 +26,22 @@ export class ShipModificationSystem {
             sails: { cost: 60, value: 0.05, name: 'Sails & Speed', description: '+5% speed and sail integrity' },
             rowing: { cost: 80, value: 0.05, name: 'Rowing', description: '+5% rowing power (galleys only)' },
             turnSpeed: { cost: 70, value: 0.05, name: 'Turn Speed', description: '+5% turn speed' },
-            cannons: { cost: 100, value: 0.05, name: 'Cannons', description: '+5% cannon count' }
+            cannons: { cost: 100, value: 0.05, name: 'Cannons', description: '+5% cannon count' },
+            cannonType: { cost: 150, value: 1, name: 'Cannon Type', description: 'Upgrade cannon type for increased damage' }
         };
+        
+        // Cannon type configurations
+        this.cannonTypes = {
+            '4-pound': { multiplier: 0.5, name: '4-pound Cannons', description: '0.5x damage multiplier' },
+            '9-pound': { multiplier: 0.75, name: '9-pound Cannons', description: '0.75x damage multiplier' },
+            '12-pound': { multiplier: 1.0, name: '12-pound Cannons', description: '1.0x damage multiplier (default)' },
+            '18-pound': { multiplier: 1.25, name: '18-pound Cannons', description: '1.25x damage multiplier' },
+            '24-pound': { multiplier: 1.5, name: '24-pound Cannons', description: '1.5x damage multiplier' },
+            '32-pound': { multiplier: 1.75, name: '32-pound Cannons', description: '1.75x damage multiplier' },
+            '60-pound': { multiplier: 2.0, name: '60-pound Cannons', description: '2.0x damage multiplier' }
+        };
+        
+        this.cannonTypeOrder = ['4-pound', '9-pound', '12-pound', '18-pound', '24-pound', '32-pound', '60-pound'];
         
         // Maximum total upgrades per ship
         this.maxTotalUpgrades = 20;
@@ -72,6 +86,7 @@ export class ShipModificationSystem {
                 rowing: 0,
                 turnSpeed: 0,
                 cannons: 0,
+                cannonType: 2, // Default to 12-pound cannons (index 2 in cannonTypeOrder)
                 totalUpgrades: 0
             };
         }
@@ -264,7 +279,15 @@ export class ShipModificationSystem {
         this.scene.playerShip.gold -= config.cost;
         
         // Apply upgrade
-        this.shipUpgrades[this.selectedShipId][option.key]++;
+        if (option.key === 'cannonType') {
+            // For cannon type, increment the cannon type index
+            const currentCannonIndex = this.shipUpgrades[this.selectedShipId].cannonType;
+            const nextCannonIndex = Math.min(currentCannonIndex + 1, this.cannonTypeOrder.length - 1);
+            this.shipUpgrades[this.selectedShipId].cannonType = nextCannonIndex;
+        } else {
+            // For regular upgrades, increment the level
+            this.shipUpgrades[this.selectedShipId][option.key]++;
+        }
         this.shipUpgrades[this.selectedShipId].totalUpgrades++;
         
         console.log('=== UPGRADE PURCHASED ===');
@@ -328,6 +351,8 @@ export class ShipModificationSystem {
         const rowingBonus = Math.floor(this.selectedShip.rowing * upgrades.rowing * this.upgradeConfig.rowing.value);
         const turnSpeedBonus = Math.floor(this.selectedShip.turnSpeed * upgrades.turnSpeed * this.upgradeConfig.turnSpeed.value);
         const cannonsBonus = Math.max(2, Math.ceil(this.selectedShip.cannons * upgrades.cannons * this.upgradeConfig.cannons.value / 2) * 2);
+        const currentCannonType = this.cannonTypeOrder[upgrades.cannonType];
+        const cannonTypeInfo = this.cannonTypes[currentCannonType];
         
         this.shipInfoText = this.scene.add.text(
             width / 2, height / 2 - 250,
@@ -341,6 +366,7 @@ export class ShipModificationSystem {
             `  Speed: ${this.selectedShip.speed + speedBonus}\n` +
             `  Turn Speed: ${this.selectedShip.turnSpeed + turnSpeedBonus}\n` +
             `  Cannons: ${this.selectedShip.cannons + cannonsBonus}\n` +
+            `  Cannon Type: ${cannonTypeInfo.name} (${cannonTypeInfo.multiplier}x damage)\n` +
             `  Rowing: ${this.selectedShip.rowing + rowingBonus}`,
             { fontSize: '14px', fill: '#cccccc' }
         ).setOrigin(0.5);
@@ -354,7 +380,8 @@ export class ShipModificationSystem {
         
         // Create upgrade options with rowing at the bottom
         const upgradeKeys = Object.keys(this.upgradeConfig);
-        const regularUpgrades = upgradeKeys.filter(key => key !== 'rowing');
+        const regularUpgrades = upgradeKeys.filter(key => key !== 'rowing' && key !== 'cannonType');
+        const cannonTypeUpgrade = upgradeKeys.find(key => key === 'cannonType');
         const rowingUpgrade = upgradeKeys.find(key => key === 'rowing');
         
         let index = 0;
@@ -396,6 +423,61 @@ export class ShipModificationSystem {
             
             index++;
         });
+        
+        // Add cannon type upgrade
+        if (cannonTypeUpgrade) {
+            const config = this.upgradeConfig[cannonTypeUpgrade];
+            const y = height / 2 - 100 + (index * 80);
+            
+            // Background for option
+            const background = this.scene.add.rectangle(
+                width / 2, y, 700, 60, 0x2a2a2a, 0.8
+            );
+            background.setScrollFactor(0);
+            background.setDepth(1100); // Higher than inventory
+            background.setStrokeStyle(2, 0x444444);
+            
+            // Get current and next cannon type info
+            const currentCannonIndex = upgrades.cannonType;
+            const currentCannonType = this.cannonTypeOrder[currentCannonIndex];
+            const currentCannonInfo = this.cannonTypes[currentCannonType];
+            
+            const nextCannonIndex = Math.min(currentCannonIndex + 1, this.cannonTypeOrder.length - 1);
+            const canUpgrade = currentCannonIndex < this.cannonTypeOrder.length - 1;
+            
+            // Option text
+            const isMaxLevel = upgrades.totalUpgrades >= this.maxTotalUpgrades || !canUpgrade;
+            let levelText;
+            if (isMaxLevel) {
+                if (!canUpgrade) {
+                    levelText = `MAX CANNON TYPE REACHED`;
+                } else {
+                    levelText = `UPGRADE LIMIT REACHED`;
+                }
+            } else {
+                levelText = `Current: ${currentCannonInfo.name} | Cost: ${config.cost} gold`;
+            }
+            const textColor = isMaxLevel ? '#888888' : '#ffffff';
+            
+            const text = this.scene.add.text(
+                width / 2 - 300, y - 20,
+                `${config.name}: ${currentCannonInfo.description}\n` +
+                levelText,
+                { fontSize: '16px', fill: textColor }
+            );
+            text.setScrollFactor(0);
+            text.setDepth(1101); // Higher than inventory
+            
+            this.upgradeOptions.push({
+                key: cannonTypeUpgrade,
+                text: text,
+                background: background,
+                costText: null,
+                y: y
+            });
+            
+            index++;
+        }
         
         // Add rowing upgrade at the bottom (only for galley ships)
         if (rowingUpgrade && this.selectedShip.isGalley === 1) {
@@ -500,6 +582,10 @@ export class ShipModificationSystem {
                     console.log('Rowing upgrade skipped - not a galley');
                 }
                 break;
+            case 'cannonType':
+                // Cannon type is handled separately - just store the upgrade data
+                console.log(`Cannon type upgraded - upgrade data stored`);
+                break;
         }
         
         console.log('Ship after upgrade:', {
@@ -541,6 +627,7 @@ export class ShipModificationSystem {
             rowing: 0,
             turnSpeed: 0,
             cannons: 0,
+            cannonType: 2, // Default to 12-pound cannons
             totalUpgrades: 0
         };
     }
@@ -597,6 +684,34 @@ export class ShipModificationSystem {
         if (ship.isGalley === 1) {
             const rowingIncrease = Math.floor(ship.shipType.rowing * upgrades.rowing * this.upgradeConfig.rowing.value);
             ship.rowing = ship.shipType.rowing + rowingIncrease;
+        }
+        
+        // Store cannon type data on the ship for combat system to use
+        const currentCannonType = this.cannonTypeOrder[upgrades.cannonType];
+        const cannonTypeInfo = this.cannonTypes[currentCannonType];
+        ship.cannonType = currentCannonType;
+        ship.cannonDamageMultiplier = cannonTypeInfo.multiplier;
+        
+        console.log(`🔫 Applied cannon type: ${currentCannonType} with ${cannonTypeInfo.multiplier}x damage multiplier`);
+        console.log(`🔫 Ship cannon properties after upgrade: cannonType=${ship.cannonType}, cannonDamageMultiplier=${ship.cannonDamageMultiplier}`);
+    }
+    
+    getCannonDamageMultiplier(shipId) {
+        const upgrades = this.getShipUpgrades(shipId);
+        const currentCannonType = this.cannonTypeOrder[upgrades.cannonType];
+        const cannonTypeInfo = this.cannonTypes[currentCannonType];
+        return cannonTypeInfo.multiplier;
+    }
+
+    // Save system methods
+    getAllShipUpgrades() {
+        return { ...this.shipUpgrades };
+    }
+
+    restoreShipUpgrades(upgradeData) {
+        if (upgradeData) {
+            this.shipUpgrades = { ...upgradeData };
+            console.log('Ship upgrades restored');
         }
     }
 }

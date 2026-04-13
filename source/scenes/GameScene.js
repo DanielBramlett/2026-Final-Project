@@ -8,14 +8,22 @@ import EnemySystem from '../systems/EnemySystem.js';
 import CombatSystem from '../systems/CombatSystem.js';
 import AmmoUI from '../systems/AmmoUI.js';
 import StatsUI from '../systems/StatsUI.js';
-import WreckageSystem from '../systems/WreckageSystem.js';
 import FactionSystem from '../systems/FactionSystem.js';
 import TradeRunSystem from '../systems/TradeRunSystem.js';
 import { ShipModificationSystem } from '../systems/ShipModificationSystem.js';
+import WreckageSystem from '../systems/WreckageSystem.js';
+import FoodConsumptionSystem from '../systems/FoodConsumptionSystem.js';
+import SaveSystem from '../systems/SaveSystem.js';
 
 export default class GameScene extends Phaser.Scene {
     constructor() {
         super('GameScene');
+        
+        // Enemy spawning configuration
+        this.enemySpawnTimer = 0;
+        this.enemySpawnInterval = 120000; // 2 minutes in milliseconds
+        this.maxEnemies = 8;
+        this.enemiesPerSpawn = 4;
     }
 
     preload() {
@@ -99,8 +107,22 @@ export default class GameScene extends Phaser.Scene {
         this.load.image('Orient_West', 'assets/Orient_West.png');
         this.load.image('Urca_de_Lima_East', 'assets/Urca_de_Lima_East.png');
         this.load.image('Urca_de_Lima_West', 'assets/Urca_de_Lima_West.png');
-        this.load.image('Wreckage', 'assets/Wreckage.png')
-        this.load.image('Wreck_2', 'assets/Wreck_2.png')
+        this.load.image('Wreckage', 'assets/Wreckage.png');
+        this.load.image('Wreck_2', 'assets/Wreck_2.png');
+        this.load.image('Adventure_East_1', 'assets/Adventure_East_1.png');
+        this.load.image('Adventure_West_1', 'assets/Adventure_West_1.png');
+        this.load.image('Adventure_East_2', 'assets/Adventure_East_2.png');
+        this.load.image('Adventure_West_2', 'assets/Adventure_West_2.png');
+        this.load.image('Adventure_East_3', 'assets/Adventure_East_3.png');
+        this.load.image('Adventure_West_3', 'assets/Adventure_West_3.png');
+        this.load.image('Whydah_East_1', 'assets/Whydah_East_1.png');
+        this.load.image('Whydah_West_1', 'assets/Whydah_West_1.png');
+        this.load.image('Whydah_East_2', 'assets/Whydah_East_2.png');
+        this.load.image('Whydah_West_2', 'assets/Whydah_West_2.png');
+        this.load.image('Whydah_East_3', 'assets/Whydah_East_3.png');
+        this.load.image('Whydah_West_3', 'assets/Whydah_West_3.png');
+        this.load.image('Queen_Annes_Revenge_East', 'assets/Queen_Annes_Revenge_East.png');
+        this.load.image('Queen_Annes_Revenge_West', 'assets/Queen_Annes_Revenge_West.png');
         this.load.audio('cannon_shot_1', 'assets/Cannon_Shot_1.mp3');
         this.load.audio('cannon_shot_2', 'assets/Cannon_Shot_2.mp3');
         this.load.audio('rowing', 'assets/Rowing.mp3');
@@ -160,6 +182,31 @@ export default class GameScene extends Phaser.Scene {
         // Initialize combat system
         this.combatSystem = new CombatSystem(this);
         
+        // Initialize save system
+        this.saveSystem = new SaveSystem(this);
+        
+        // Check if we should load saved game data
+        const saveData = this.registry.get('saveData');
+        if (saveData) {
+            console.log('Loading saved game data...');
+            // Create default player ship first (will be replaced by save data)
+            this.playerShip = this.playerSystem.createPlayerShip(
+                8000,
+                5000,
+                SHIP_TYPES.SLOOP,
+            );
+            // Restore save data (this will replace the player ship)
+            this.saveSystem.restoreSaveData(saveData);
+            this.registry.remove('saveData'); // Clean up registry
+        } else {
+            // Create new player ship for fresh game
+            this.playerShip = this.playerSystem.createPlayerShip(
+                8000,
+                5000,
+                SHIP_TYPES.SLOOP,
+            );
+        }
+
         // Apply English reload speed buff if selected
         if (this.factionSystem.getCurrentFaction()?.name === 'English') {
             const baseFireRate = 1000; // Base fire rate in milliseconds
@@ -168,21 +215,14 @@ export default class GameScene extends Phaser.Scene {
             console.log(`English reload buff applied in GameScene: ${baseFireRate}ms -> ${newFireRate}ms`);
         }
 
-        // Create player ship
-        this.playerShip = this.playerSystem.createPlayerShip(
-            8000,
-            5000,
-            SHIP_TYPES.SLOOP,
-        );
-
-        // Initialize wreckage system AFTER player ship is created
+        // Initialize wreckage system for enemy ships only
         this.wreckageSystem = new WreckageSystem(this);
+        
+        // Initialize food consumption system
+        this.foodConsumptionSystem = new FoodConsumptionSystem(this, this.playerShip);
         
         // Initialize trade run system
         this.tradeRunSystem = new TradeRunSystem(this, SHIP_TYPES);
-        
-        // Set initial player ship reference for collision calculations
-        this.wreckageSystem.setPlayerShip(this.playerShip);
 
         this.islands = [];
         // Caribbean Islands (south-west region)
@@ -303,8 +343,11 @@ export default class GameScene extends Phaser.Scene {
             port.shipModificationSystem = this.shipModificationSystem;
         });
 
-        // Create some enemy ships after islands are created
+        // Create initial enemy ships after islands are created
         this.enemyShips = this.enemySystem.createEnemyShips();
+        
+        // Initialize enemy spawn timer
+        this.enemySpawnTimer = this.enemySpawnInterval; // Start with full interval to spawn first wave after 2 minutes
 
         this.ammoUI = new AmmoUI(this, this.playerShip);
         
@@ -351,50 +394,27 @@ export default class GameScene extends Phaser.Scene {
         this.addWorldBorder();
     }
 
-
-    addWorldBorder() {
-        const borderWidth = 5;
-        const worldBounds = this.physics.world.bounds;
-        
-        // Create border graphics
-        const border = this.add.graphics();
-        border.lineStyle(borderWidth, 0xFF0000, 1); // Red border
-        
-        // Draw rectangle around world bounds
-        border.strokeRect(
-            worldBounds.x + borderWidth/2, 
-            worldBounds.y + borderWidth/2, 
-            worldBounds.width - borderWidth, 
-            worldBounds.height - borderWidth
-        );
-        
-        // Set scroll factor so border stays in world space
-        border.setScrollFactor(1);
-    }
-
     setupCollisions() {
-        // Player ship collisions with islands using enhanced collision handler
-        this.physics.add.overlap(this.playerShip, this.islands, this.handleShipCollision, null, this);
-        
-        // Player ship collisions with ports using enhanced collision handler
-        this.physics.add.overlap(this.playerShip, this.ports, this.handleShipCollision, null, this);
-        
-        
-        // Ship-to-ship collisions with size-based physics
-        this.physics.add.overlap(this.playerShip, this.enemyShips, this.handleShipCollision, null, this);
-        
-    }
+    // Player ship collisions with islands using proper collision physics
+    this.physics.add.collider(this.playerSystem.getPlayerShip(), this.islands, this.handleShipCollision, null, this);
+    
+    // Player ship collisions with ports using proper collision physics
+    this.physics.add.collider(this.playerSystem.getPlayerShip(), this.ports, this.handleShipCollision, null, this);
+    
+    // Ship-to-ship collisions with size-based physics
+    this.physics.add.collider(this.playerSystem.getPlayerShip(), this.enemyShips, this.handleShipCollision, null, this);
+}
 
-    handleShipCollision(obj1, obj2) {
-        // Check if this is a ship-obstacle collision
-        const isShip1 = obj1.constructor.name === 'Ship';
-        const isShip2 = obj2.constructor.name === 'Ship';
-        const isObstacle1 = obj1.constructor.name === 'Obstacle';
-        const isObstacle2 = obj2.constructor.name === 'Obstacle';
-        const isPort1 = obj1.constructor.name === 'Port';
-        const isPort2 = obj2.constructor.name === 'Port';
-        
-        // Handle ship-obstacle collisions
+// ... (rest of the code remains the same)
+handleShipCollision(obj1, obj2) {
+    // Check if this is a ship-obstacle collision
+    const isShip1 = obj1.constructor.name === 'Ship';
+    const isShip2 = obj2.constructor.name === 'Ship';
+    const isObstacle1 = obj1.constructor.name === 'Obstacle';
+    const isObstacle2 = obj2.constructor.name === 'Obstacle';
+    const isPort1 = obj1.constructor.name === 'Port';
+    const isPort2 = obj2.constructor.name === 'Port';
+    // Handle ship-obstacle collisions
         if (isShip1 && (isObstacle2 || isPort2)) {
             // Ship collides with obstacle - obstacle is static, ship bounces off
             // Static bodies don't need setImmovable() as they're already immovable
@@ -437,12 +457,36 @@ export default class GameScene extends Phaser.Scene {
             // Reset immovable state for larger ship
             largerShip.body.setImmovable(false);
         }
+}
+
+    addWorldBorder() {
+        const borderWidth = 5;
+        const worldBounds = this.physics.world.bounds;
+        
+        // Create border graphics
+        const border = this.add.graphics();
+        border.lineStyle(borderWidth, 0xFF0000, 1); // Red border
+        
+        // Draw rectangle around world bounds
+        border.strokeRect(
+            worldBounds.x + borderWidth/2, 
+            worldBounds.y + borderWidth/2, 
+            worldBounds.width - borderWidth, 
+            worldBounds.height - borderWidth
+        );
     }
 
 
 
     update(time, delta) {
         this.windSystem.update(delta);
+        
+        // Update enemy spawn timer
+        this.enemySpawnTimer -= delta;
+        if (this.enemySpawnTimer <= 0) {
+            this.spawnRandomEnemies();
+            this.enemySpawnTimer = this.enemySpawnInterval; // Reset timer
+        }
         
         // Update player and enemy systems (player system will handle sunk state internally)
         this.playerSystem.update(time, delta);
@@ -451,17 +495,24 @@ export default class GameScene extends Phaser.Scene {
         // Update combat system
         this.combatSystem.update(delta);
         
-        // Update wreckage system
+        // Update wreckage system for enemy ships only
         this.wreckageSystem.update(time, delta);
+        
+        // Update food consumption system
+        this.foodConsumptionSystem.update(time, delta);
         
         // Update trade run system
         this.tradeRunSystem.update();
         
-        // Update ammo UI only if player is not sunk
-        if (!this.wreckageSystem.areControlsDisabled()) {
-            this.ammoUI.update();
-            this.statsUI.update();
-        }
+        // Update ammo UI
+        this.ammoUI.update();
+        this.statsUI.update();
+        
+        // Update save system (auto-save)
+        this.saveSystem.updateAutoSave(time);
+        
+        // Handle save/load keyboard shortcuts
+        this.handleSaveLoadKeys();
         
         // Handle ambient sounds
         this.updateAmbientSounds(delta);
@@ -469,73 +520,72 @@ export default class GameScene extends Phaser.Scene {
         // Handle background music
         this.updateBackgroundMusic(delta);
         
-        // Update direction arrows only if player is not sunk
-        if (!this.wreckageSystem.areControlsDisabled()) {
-            const windEffect = this.windSystem.getWindEffect(this.playerShip.facingAngle);
-            const windBaseBoost = this.playerShip.speed * windEffect.factor * this.playerShip.shipType.windResistance; 
-            const windBoost = Math.min(windBaseBoost, this.playerShip.speed * 0.5); // Cap the boost at 50 for display purposes
+        // Update direction arrows
+        const windEffect = this.windSystem.getWindEffect(this.playerShip.facingAngle);
+        const windBaseBoost = this.playerShip.speed * windEffect.factor * this.playerShip.shipType.windResistance; 
+        const windBoost = Math.min(windBaseBoost, this.playerShip.speed * 0.5); // Cap the boost at 50 for display purposes
+        
+        // Update ports
+        this.ports.forEach(port => port.update());
             
-            // Update ports
-            this.ports.forEach(port => port.update());
-            
-const arrowDistance = this.playerShip.size / 2 + 90;
-const arrowX = this.playerShip.x + Math.cos(this.playerShip.facingAngle) * arrowDistance;
-const arrowY = this.playerShip.y + Math.sin(this.playerShip.facingAngle) * arrowDistance;
-this.directionArrow.clear();
+        const arrowDistance = this.playerShip.size / 2 + 90;
+        const arrowX = this.playerShip.x + Math.cos(this.playerShip.facingAngle) * arrowDistance;
+        const arrowY = this.playerShip.y + Math.sin(this.playerShip.facingAngle) * arrowDistance;
+        this.directionArrow.clear();
 
-// Draw main blue arrow (3x size)
-this.directionArrow.fillStyle(0x0066FF, 1);
-this.directionArrow.beginPath();
-this.directionArrow.moveTo(arrowX, arrowY);
-this.directionArrow.lineTo(
-    arrowX - 45 * Math.cos(this.playerShip.facingAngle - 0.4),
-    arrowY - 45 * Math.sin(this.playerShip.facingAngle - 0.4)
-);
-this.directionArrow.lineTo(
-    arrowX - 45 * Math.cos(this.playerShip.facingAngle + 0.4),
-    arrowY - 45 * Math.sin(this.playerShip.facingAngle + 0.4)
-);
-this.directionArrow.closePath();
-this.directionArrow.fillPath();
+        // Draw main blue arrow (3x size)
+        this.directionArrow.fillStyle(0x0066FF, 1);
+        this.directionArrow.beginPath();
+        this.directionArrow.moveTo(arrowX, arrowY);
+        this.directionArrow.lineTo(
+            arrowX - 45 * Math.cos(this.playerShip.facingAngle - 0.4),
+            arrowY - 45 * Math.sin(this.playerShip.facingAngle - 0.4)
+        );
+        this.directionArrow.lineTo(
+            arrowX - 45 * Math.cos(this.playerShip.facingAngle + 0.4),
+            arrowY - 45 * Math.sin(this.playerShip.facingAngle + 0.4)
+        );
+        this.directionArrow.closePath();
+        this.directionArrow.fillPath();
 
-// Draw two side arrows (perpetual) at 90 and -90 degrees (3x size)
-const greenArrowDistance = this.playerShip.size / 2 + 150;
-const greenArrow1X = this.playerShip.x + Math.cos(this.playerShip.facingAngle + Math.PI / 2) * greenArrowDistance;
-const greenArrow1Y = this.playerShip.y + Math.sin(this.playerShip.facingAngle + Math.PI / 2) * greenArrowDistance;
-const greenArrow2X = this.playerShip.x + Math.cos(this.playerShip.facingAngle - Math.PI / 2) * greenArrowDistance;
-const greenArrow2Y = this.playerShip.y + Math.sin(this.playerShip.facingAngle - Math.PI / 2) * greenArrowDistance;
+        // Draw two side arrows (perpetual) at 90 and -90 degrees (3x size)
+        const greenArrowDistance = this.playerShip.size / 2 + 150;
+        const greenArrow1X = this.playerShip.x + Math.cos(this.playerShip.facingAngle + Math.PI / 2) * greenArrowDistance;
+        const greenArrow1Y = this.playerShip.y + Math.sin(this.playerShip.facingAngle + Math.PI / 2) * greenArrowDistance;
+        const greenArrow2X = this.playerShip.x + Math.cos(this.playerShip.facingAngle - Math.PI / 2) * greenArrowDistance;
+        const greenArrow2Y = this.playerShip.y + Math.sin(this.playerShip.facingAngle - Math.PI / 2) * greenArrowDistance;
 
-// Left arrow (red) - at 90 degrees (3x size)
-this.directionArrow.fillStyle(0xFF0000, 1);
-this.directionArrow.beginPath();
-this.directionArrow.moveTo(greenArrow1X, greenArrow1Y);
-this.directionArrow.lineTo(
-    greenArrow1X - 30 * Math.cos(this.playerShip.facingAngle + Math.PI / 2 - 0.4),
-    greenArrow1Y - 30 * Math.sin(this.playerShip.facingAngle + Math.PI / 2 - 0.4)
-);
-this.directionArrow.lineTo(
-    greenArrow1X - 30 * Math.cos(this.playerShip.facingAngle + Math.PI / 2 + 0.4),
-    greenArrow1Y - 30 * Math.sin(this.playerShip.facingAngle + Math.PI / 2 + 0.4)
-);
-this.directionArrow.closePath();
-this.directionArrow.fillPath();
+        // Left arrow (red) - at 90 degrees (3x size)
+        this.directionArrow.fillStyle(0xFF0000, 1);
+        this.directionArrow.beginPath();
+        this.directionArrow.moveTo(greenArrow1X, greenArrow1Y);
+        this.directionArrow.lineTo(
+            greenArrow1X - 30 * Math.cos(this.playerShip.facingAngle + Math.PI / 2 - 0.4),
+            greenArrow1Y - 30 * Math.sin(this.playerShip.facingAngle + Math.PI / 2 - 0.4)
+        );
+        this.directionArrow.lineTo(
+            greenArrow1X - 30 * Math.cos(this.playerShip.facingAngle + Math.PI / 2 + 0.4),
+            greenArrow1Y - 30 * Math.sin(this.playerShip.facingAngle + Math.PI / 2 + 0.4)
+        );
+        this.directionArrow.closePath();
+        this.directionArrow.fillPath();
 
-// Right arrow (lavender) - at -90 degrees (3x size)
-this.directionArrow.fillStyle(0xE6E6FA, 1);
-this.directionArrow.beginPath();
-this.directionArrow.moveTo(greenArrow2X, greenArrow2Y);
-this.directionArrow.lineTo(
-    greenArrow2X - 30 * Math.cos(this.playerShip.facingAngle - Math.PI / 2 - 0.4),
-    greenArrow2Y - 30 * Math.sin(this.playerShip.facingAngle - Math.PI / 2 - 0.4)
-);
-this.directionArrow.lineTo(
-    greenArrow2X - 30 * Math.cos(this.playerShip.facingAngle - Math.PI / 2 + 0.4),
-    greenArrow2Y - 30 * Math.sin(this.playerShip.facingAngle - Math.PI / 2 + 0.4)
-);
-this.directionArrow.closePath();
-this.directionArrow.fillPath();
+        // Right arrow (lavender) - at -90 degrees (3x size)
+        this.directionArrow.fillStyle(0xE6E6FA, 1);
+        this.directionArrow.beginPath();
+        this.directionArrow.moveTo(greenArrow2X, greenArrow2Y);
+        this.directionArrow.lineTo(
+            greenArrow2X - 30 * Math.cos(this.playerShip.facingAngle - Math.PI / 2 - 0.4),
+            greenArrow2Y - 30 * Math.sin(this.playerShip.facingAngle - Math.PI / 2 - 0.4)
+        );
+        this.directionArrow.lineTo(
+            greenArrow2X - 30 * Math.cos(this.playerShip.facingAngle - Math.PI / 2 + 0.4),
+            greenArrow2Y - 30 * Math.sin(this.playerShip.facingAngle - Math.PI / 2 + 0.4)
+        );
+        this.directionArrow.closePath();
+        this.directionArrow.fillPath();
 
-// Update info text
+        // Update info text
         const selectedAmmo = this.combatSystem.getSelectedAmmo();
         this.infoText.setText([
             `Ship: ${this.playerShip.shipType.name}`,
@@ -549,6 +599,7 @@ this.directionArrow.fillPath();
             `Controls: W/S - For/Back`,
             `A/D - Rotate`,
             `Q/E - Select Ammo`,
+            `B - Boarding`,
             `Left Click - Fire Left`,
             `Right Click - Fire Right`,
             `R - Cargo`,
@@ -574,7 +625,6 @@ this.directionArrow.fillPath();
             arrowSize / 2, arrowSize / 2
         ));
         this.windArrow.restore();
-        }
     }
 
     updateAmbientSounds(delta) {
@@ -633,4 +683,85 @@ this.directionArrow.fillPath();
             }
         }
     }
+
+    spawnRandomEnemies() {
+        // Check current enemy count
+        const currentEnemyCount = this.enemyShips.filter(ship => !ship.destroyed).length;
+        
+        if (currentEnemyCount >= this.maxEnemies) {
+            console.log(`Enemy spawn skipped: Already at max limit (${currentEnemyCount}/${this.maxEnemies})`);
+            return;
+        }
+        
+        // Calculate how many enemies to spawn (respect max limit)
+        const enemiesToSpawn = Math.min(this.enemiesPerSpawn, this.maxEnemies - currentEnemyCount);
+        
+        // Get all available ship types for random selection
+        const availableShipTypes = [
+            SHIP_TYPES.SLOOP,
+            SHIP_TYPES.BRIGANTINE,
+            SHIP_TYPES.CLIPPER,
+            SHIP_TYPES.FRIGATE,
+            SHIP_TYPES.SLOOP_OF_WAR,
+            SHIP_TYPES.GALLEON,
+            SHIP_TYPES.GALLEY,
+            SHIP_TYPES.FIRST_RATE,
+            SHIP_TYPES.DUKE_OF_KENT,
+            SHIP_TYPES.KETCH,
+            SHIP_TYPES.SCHOONER,
+            SHIP_TYPES.CARAVEL,
+            SHIP_TYPES.CUTTER,
+            SHIP_TYPES.BARQUE,
+            SHIP_TYPES.BRIG,
+            SHIP_TYPES.XEBEC,
+            SHIP_TYPES.CARRACK,
+            SHIP_TYPES.BARQUENTINE,
+            SHIP_TYPES.FOURTH_RATE,
+            SHIP_TYPES.THIRD_RATE,
+            SHIP_TYPES.SECOND_RATE,
+            SHIP_TYPES.HMS_VICTORY,
+            SHIP_TYPES.SANTÍSIMA_TRINIDAD,
+            SHIP_TYPES.ORIENT,
+            SHIP_TYPES.URCA_DE_LIMA,
+            SHIP_TYPES.ADVENTURE,
+            SHIP_TYPES.WHYDAH,
+            SHIP_TYPES.QUEEN_ANNES_REVENGE
+        ];
+        
+        console.log(`Spawning ${enemiesToSpawn} random enemies (current: ${currentEnemyCount}/${this.maxEnemies})`);
+        
+        // Spawn the enemies
+        for (let i = 0; i < enemiesToSpawn; i++) {
+            // Select random ship type
+            const randomIndex = Math.floor(Math.random() * availableShipTypes.length);
+            const randomShipType = availableShipTypes[randomIndex];
+            
+            // Spawn the enemy
+            const newEnemy = this.enemySystem.spawnEnemyShip(randomShipType);
+            
+            // Set up collisions for the new enemy
+            this.physics.add.overlap(newEnemy, this.islands, this.handleShipCollision, null, this);
+            this.physics.add.overlap(newEnemy, this.ports, this.handleShipCollision, null, this);
+            this.physics.add.overlap(this.playerShip, newEnemy, this.handleShipCollision, null, this);
+            
+            // Set up enemy-to-enemy collisions with existing enemies
+            this.enemyShips.forEach(existingEnemy => {
+                if (existingEnemy !== newEnemy) {
+                    this.physics.add.overlap(newEnemy, existingEnemy, this.handleShipCollision, null, this);
+                }
+            });
+            
+            console.log(`Spawned enemy ${i + 1}/${enemiesToSpawn}: ${randomShipType.name}`);
+        }
+        
+        console.log(`Enemy spawn complete. Total enemies: ${this.enemyShips.filter(ship => !ship.destroyed).length}/${this.maxEnemies}`);
+    }
+
+    handleSaveLoadKeys() {
+        // F5 for quick save
+        if (Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F5))) {
+            this.saveSystem.quickSave();
+        }
+    }
 }
+

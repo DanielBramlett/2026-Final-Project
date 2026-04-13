@@ -5,38 +5,77 @@ export default class WreckageSystem {
         this.animationTimers = new Map(); // Map to track animation timers for each wreckage
         this.animationDelay = 500; // Switch between wreckage images every 500ms
         this.currentWreckageFrames = new Map(); // Map to track current frame for each wreckage
-        this.isPlayerSunk = false;
-        this.controlsDisabled = false;
     }
 
     // Method to set initial player ship reference
     setPlayerShip(playerShip) {
         // Store reference to player ship for collision calculations
         this.playerShipRef = playerShip;
-        console.log('📍 Wreckage system player ship reference set');
+        console.log('?? Wreckage system player ship reference set');
+    }
+
+    // Initialize respawn system
+    initRespawnSystem() {
+        if (!this.respawnSystem) {
+            this.respawnSystem = new RespawnSystem(this.scene);
+            console.log('?? Respawn system initialized');
+        }
     }
 
     handleShipSunk(ship) {
-        console.log(`🚢 ${ship.isPlayer ? 'Player' : 'Enemy'} ${ship.shipType.name} sunk! Creating wreckage...`);
+        // Only handle enemy ships - player ships are handled separately
+        if (ship.isPlayer) {
+            console.log(`Player ship ${ship.shipType.name} handled separately - skipping wreckage system`);
+            return;
+        }
+
+        console.log(`?? Enemy ${ship.shipType.name} sunk! Creating wreckage...`);
 
         // Store ship position and properties before destruction
         const sinkX = ship.x;
         const sinkY = ship.y;
         const sinkSize = ship.size;
         const sinkAngle = ship.facingAngle;
-        const shipId = ship.isPlayer ? 'player' : `enemy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-        // If this is the player ship, disable controls
-        if (ship.isPlayer) {
-            this.isPlayerSunk = true;
-            this.disablePlayerControls();
-        }
+        const shipId = `enemy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
         // Create wreckage sprite at the ship's position
         this.createWreckage(sinkX, sinkY, sinkSize, sinkAngle, shipId);
 
         // Play sinking sound effect
         this.scene.sound.play('wood_breaking');
+    }
+
+    // Method to create wreckage for player without affecting the player ship
+    createPlayerWreckage(x, y, size, angle) {
+        console.log(`Creating player wreckage at position: ${x}, ${y}`);
+        
+        const shipId = 'player_wreckage';
+        
+        // Create wreckage sprite at the player's position
+        this.createWreckage(x, y, size, angle, shipId);
+        
+        // Play sinking sound effect
+        this.scene.sound.play('wood_breaking');
+    }
+
+    // Helper method to find nearest port
+    findNearestPort(x, y) {
+        if (!this.scene.ports || this.scene.ports.length === 0) {
+            return null;
+        }
+
+        let nearestPort = null;
+        let minDistance = Infinity;
+
+        this.scene.ports.forEach(port => {
+            const distance = Math.sqrt(Math.pow(port.x - x, 2) + Math.pow(port.y - y, 2));
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearestPort = port;
+            }
+        });
+
+        return nearestPort;
     }
 
     createWreckage(x, y, size, angle, shipId) {
@@ -66,21 +105,20 @@ export default class WreckageSystem {
         // Enable physics for collision detection with player
         this.scene.physics.add.existing(wreckageSprite);
         
-        // Calculate collision radius based on both wreckage and player ship sizes
-        const playerRadius = (this.playerShipRef && this.playerShipRef.size) ? this.playerShipRef.size / 2 : 40;
+        // Calculate collision radius for enemy wreckage
         const wreckageRadius = Math.min(wreckageSize / 2, 80); // Cap at 80px to prevent oversized collision areas
         const collisionRadius = Math.min(Math.max(wreckageRadius, 30), 60); // Cap final radius at 60px maximum
         
-        console.log(`🔧 Collision setup for ${shipId}: player=${playerRadius}px, wreckage=${wreckageRadius}px, final=${collisionRadius}px`);
+        console.log(`?? Collision setup for ${shipId}: wreckage=${wreckageRadius}px, final=${collisionRadius}px`);
         
         wreckageSprite.body.setCircle(collisionRadius);
         wreckageSprite.body.setImmovable(true);
         wreckageSprite.body.enable = true;
 
-        // Set up overlap detection for salvage
+        // Set up overlap detection for salvage with player ship
         this.scene.physics.add.overlap(
             wreckageSprite,
-            this.playerShipRef,
+            this.scene.playerShip,
             (wreckageObj, playerObj) => {
                 this.handleSalvage(wreckageObj, playerObj);
             },
@@ -89,31 +127,6 @@ export default class WreckageSystem {
         );
 
         console.log(`🌊 ${shipId} wreckage created at position: ${x}, ${y} (size: ${wreckageSize}px, original: ${size}px)`);
-    }
-
-    disablePlayerControls() {
-        if (this.controlsDisabled) {
-            return;
-        }
-
-        this.controlsDisabled = true;
-        
-        // Disable player system input handling
-        if (this.scene.playerSystem) {
-            this.scene.playerSystem.movementDisabled = true;
-        }
-
-        // Disable all keyboard input
-        if (this.scene.input && this.scene.input.keyboard) {
-            this.scene.input.keyboard.enabled = false;
-        }
-
-        // Disable mouse input
-        if (this.scene.input) {
-            this.scene.input.enabled = false;
-        }
-
-        console.log('🔒 All player controls disabled');
     }
 
     handleSalvage(wreckageObj, playerObj) {
@@ -125,12 +138,6 @@ export default class WreckageSystem {
         if (!wreckData || wreckData.salvaged) {
             console.log('❌ Salvage failed: wreck data not found or already salvaged');
             return; // Already salvaged or not found
-        }
-
-        // Don't allow salvage if player controls are disabled (player is sunk)
-        if (this.controlsDisabled) {
-            console.log('❌ Salvage blocked: player controls disabled');
-            return;
         }
 
         // Mark as salvaged
@@ -252,85 +259,21 @@ export default class WreckageSystem {
 
     // Method to reset the system (for game restart, etc.)
     reset() {
-        this.isPlayerSunk = false;
-        this.controlsDisabled = false;
-
         // Clean up all wreckage sprites
-        this.wreckageSprites.forEach(wreckage => {
-            if (wreckage.sprite) {
-                wreckage.sprite.destroy();
+        this.wreckageSprites.forEach(wreckData => {
+            if (wreckData.sprite) {
+                wreckData.sprite.destroy();
             }
         });
         this.wreckageSprites = [];
-        
-        // Clear animation data
         this.animationTimers.clear();
         this.currentWreckageFrames.clear();
 
-        // Re-enable controls
-        if (this.scene.input && this.scene.input.keyboard) {
-            this.scene.input.keyboard.enabled = true;
-        }
-        if (this.scene.input) {
-            this.scene.input.enabled = true;
-        }
-        if (this.scene.playerSystem) {
-            this.scene.playerSystem.movementDisabled = false;
-        }
-
-        console.log('🔄 Wreckage system reset');
-    }
-
-    // Check if player is sunk
-    isSunk() {
-        return this.isPlayerSunk;
-    }
-
-    // Check if controls are disabled
-    areControlsDisabled() {
-        return this.controlsDisabled;
+        console.log('?? Wreckage system reset');
     }
 
     // Get number of active wreckage sprites
     getWreckageCount() {
         return this.wreckageSprites.length;
-    }
-
-    // Method to update player ship reference (call when player changes ships)
-    updatePlayerShip(newPlayerShip) {
-        // Update stored player ship reference
-        this.playerShipRef = newPlayerShip;
-        
-        // Clear existing overlap handlers
-        this.wreckageSprites.forEach(wreckage => {
-            if (wreckage.sprite && this.scene.physics.world) {
-                // Remove old overlap handler
-                this.scene.physics.world.removeCollider(wreckage.sprite, this.playerShipRef);
-                
-                // Recalculate collision radius based on new player ship size
-                const playerRadius = newPlayerShip.size ? newPlayerShip.size / 2 : 40;
-                const wreckData = this.wreckageSprites.find(w => w.sprite === wreckage.sprite);
-                const wreckageRadius = wreckData ? Math.min(wreckData.size / 2, 80) : wreckageSize / 2; // Cap at 80px
-                const collisionRadius = Math.min(Math.max(wreckageRadius, 30), 60); // Cap final radius at 60px maximum
-                
-                // Update the collision body size
-                wreckage.sprite.body.setCircle(collisionRadius);
-                
-                console.log(`🔧 Updated collision for ${wreckage.id}: player=${playerRadius}px, wreckage=${wreckageRadius}px, final=${collisionRadius}px`);
-                
-                // Add new overlap handler with updated player ship
-                this.scene.physics.add.overlap(
-                    wreckage.sprite,
-                    newPlayerShip,
-                    (wreckageObj, playerObj) => {
-                        this.handleSalvage(wreckageObj, playerObj);
-                    },
-                    null,
-                    this
-                );
-            }
-        });
-        
-        console.log('🔄 Wreckage system updated for new player ship');
     }
 }

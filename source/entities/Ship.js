@@ -9,6 +9,8 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
         this.speed = shipType.speed;
         this.turnSpeed = shipType.turnSpeed;
         this.cannons = shipType.cannons;
+        this.cannonType = '12-pound'; // Default cannon type
+        this.cannonDamageMultiplier = 1.0; // Default damage multiplier
         this.image = shipType.image;
         this.rowing = shipType.rowing;
         this.crew = shipType.crew;
@@ -39,7 +41,7 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
         };
         
         this.tradeGoods = {
-            food: 0,
+            food: 100, // Starting food for 16+ days of sailing
             cannonballs: 0,
             chainshot: 0,
             grapeshot: 0,
@@ -312,9 +314,9 @@ updateSpriteDirection() {
         
         // Apply velocity (only if physics body exists)
         if (this.body && this.body.setVelocity) {
-            this.setVelocity(this.velocityX, this.velocityY);
+            this.body.setVelocity(this.velocityX, this.velocityY);
         } else {
-            console.error(`❌ Ship physics body not available for setVelocity`);
+            console.error(` Ship physics body not available for setVelocity`);
         }
         
         // Update facing angle for movement (don't apply to visual rotation)
@@ -442,47 +444,114 @@ updateSpriteDirection() {
     }
 
     destroyShip() {
-        // Mark as destroyed to prevent further updates
-        this.destroyed = true;
-        
         // Create explosion effect or sinking animation
         console.log(`${this.shipType.name} has been destroyed!`);
         
-        // Trigger wreckage system for both player and enemy ships
-        if (this.scene && this.scene.wreckageSystem) {
-            console.log(`🚢 ${this.isPlayer ? 'Player' : 'Enemy'} ship detected, triggering wreckage system...`);
-            this.scene.wreckageSystem.handleShipSunk(this);
+        // Handle death differently for player vs enemy ships
+        if (this.isPlayer) {
+            // Player ship: lose half cargo and teleport to port
+            console.log('Player ship destroyed - losing half cargo and teleporting to port...');
             
-            // Don't destroy the ship immediately - let wreckage system handle it
-            // Clean up hitbox circle
-            if (this.hitboxCircle) {
-                this.hitboxCircle.destroy();
-                this.hitboxCircle = null;
+            // Lose half of all trade goods
+            const totalCargoLoss = {};
+            Object.keys(this.tradeGoods).forEach(goodType => {
+                if (goodType !== 'crew') { // Don't lose crew members
+                    const lossAmount = Math.floor(this.tradeGoods[goodType] / 2);
+                    this.tradeGoods[goodType] -= lossAmount;
+                    totalCargoLoss[goodType] = lossAmount;
+                }
+            });
+            
+            // Update cargo count
+            this.cargo = this.getCurrentCargo();
+            
+            console.log('Cargo lost:', totalCargoLoss);
+            
+            // Create wreckage at player's position but don't hide the player
+            if (this.scene && this.scene.wreckageSystem) {
+                this.scene.wreckageSystem.createPlayerWreckage(this.x, this.y, this.size, this.facingAngle);
+                
+                // Find nearest port and teleport player there
+                const nearestPort = this.scene.wreckageSystem.findNearestPort(this.x, this.y);
+                if (nearestPort) {
+                    const newX = nearestPort.x + 100; // Offset slightly from port
+                    const newY = nearestPort.y + 100;
+                    
+                    console.log(`Teleporting player from (${this.x}, ${this.y}) to (${newX}, ${newY})`);
+                    
+                    // Update both visual position and physics body
+                    this.setPosition(newX, newY);
+                    
+                    // Reset velocity to prevent movement issues
+                    this.velocityX = 0;
+                    this.velocityY = 0;
+                    this.rotationSpeed = 0;
+                    
+                    // Update physics body if it exists
+                    if (this.body) {
+                        this.body.x = newX;
+                        this.body.y = newY;
+                        this.body.velocity.x = 0;
+                        this.body.velocity.y = 0;
+                        this.body.enable = true;
+                        console.log('Physics body updated for teleportation');
+                    }
+                    
+                    // Restore health and crew
+                    this.health = this.maxHealth;
+                    this.crew = this.crewMax;
+                    this.crewHealth = this.maxCrewHealth;
+                    
+                    // Give player 3 seconds immunity
+                    this.immunityEndTime = Date.now() + 3000; // 3 seconds from now
+                    console.log(`Player teleported to ${nearestPort.portName} with immunity`);
+                } else {
+                    console.error('No port found for player respawn!');
+                    // Fallback: just restore health
+                    this.health = this.maxHealth;
+                    this.crew = this.crewMax;
+                    this.crewHealth = this.maxCrewHealth;
+                }
+            } else {
+                console.error('Wreckage system not available for player ship!');
+                // Fallback: just restore health
+                this.health = this.maxHealth;
+                this.crew = this.crewMax;
+                this.crewHealth = this.maxCrewHealth;
             }
-            
-            // Remove from physics system but don't destroy sprite yet
-            if (this.body) {
-                this.body.destroy();
-            }
-            
-            // Hide the ship sprite instead of destroying it
-            this.setVisible(false);
-            this.setActive(false);
         } else {
-            // Fallback: destroy normally if wreckage system not available
-            // Clean up hitbox circle
-            if (this.hitboxCircle) {
-                this.hitboxCircle.destroy();
-                this.hitboxCircle = null;
-            }
+            // Enemy ship: mark as destroyed and use wreckage system
+            this.destroyed = true;
             
-            // Remove from physics system
-            if (this.body) {
-                this.body.destroy();
+            if (this.scene && this.scene.wreckageSystem) {
+                console.log(`Enemy ship detected, triggering wreckage system...`);
+                this.scene.wreckageSystem.handleShipSunk(this);
+                
+                // Don't destroy the ship immediately - let wreckage system handle it
+                // Clean up hitbox circle
+                if (this.hitboxCircle) {
+                    this.hitboxCircle.destroy();
+                }
+                
+                this.setVisible(false);
+                this.setActive(false);
+            } else {
+                // Fallback: destroy normally if wreckage system not available
+                console.log('Wreckage system not available, destroying enemy ship normally');
+                this.setVisible(false);
+                this.setActive(false);
+                
+                // Clean up hitbox circle
+                if (this.hitboxCircle) {
+                    this.hitboxCircle.destroy();
+                }
+                
+                if (this.body) {
+                    this.body.destroy();
+                }
+                
+                this.destroy();
             }
-            
-            // Finally destroy the sprite
-            this.destroy();
         }
     }
 
