@@ -190,7 +190,7 @@ export default class CombatSystem {
                 }
             });
             
-            let boardingDamage = Math.max(1, Math.floor(target.crew * 0.1));
+            let boardingDamage = Math.max(1, Math.floor(target.maxCrew * 0.1));
             
             // Apply faction boarding damage buff
             if (this.scene.factionSystem) {

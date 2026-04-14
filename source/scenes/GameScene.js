@@ -209,7 +209,7 @@ export default class GameScene extends Phaser.Scene {
             this.playerShip = this.playerSystem.createPlayerShip(
                 8000,
                 5000,
-                SHIP_TYPES.SLOOP,
+                SHIP_TYPES.BRIG,
             );
         }
 

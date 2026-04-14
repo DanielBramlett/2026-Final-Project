@@ -28,7 +28,7 @@ export default class Ship extends Phaser.Physics.Arcade.Sprite {
         this.color = shipType.color || 0x8B4513; // Default brown color for ships
 
         // Trade and inventory properties
-        this.gold = 100; // Starting gold
+        this.gold = 10000; // Starting gold
         this.ownedShips = ['SLOOP']; // Player starts with only a Sloop
         this.namedShips = {}; // Object to store named ships with their custom names
         
