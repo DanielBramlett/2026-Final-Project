@@ -51,10 +51,8 @@ export default class TradeRunSystem {
 
         // Add to active trade runs
         this.activeTradeRuns.push(tradeRun);
-
         console.log(`Trade run started! ${shipType.name} sent on trade mission`);
-        console.log(`Cost: ${cost} gold, Potential reward: ${tradeRun.reward} gold`);
-        console.log(`Duration: 7 minutes`);
+        console.log(`Cost: ${cost} gold, Potential reward: ${tradeRun.reward} gold, Duration: 7 minutes`);
 
         // Show notification to player
         this.showTradeRunNotification(tradeRun, 'started');
@@ -201,26 +199,15 @@ export default class TradeRunSystem {
         const availableShips = [];
         const ownedShips = this.scene.playerShip.ownedShips;
         
-        console.log(`\n=== Available Ships Debug ===`);
-        console.log(`Player owned ships: [${ownedShips.join(', ')}]`);
-        console.log(`Current ship name: ${this.scene.playerShip.shipType.name}`);
-        
         // Don't allow sending the current ship on trade run
         // Compare with ship key (uppercase) not name (lowercase)
         const currentShipKey = Object.keys(this.shipTypes).find(key => 
             this.shipTypes[key].name === this.scene.playerShip.shipType.name
         );
         
-        console.log(`Current ship key: ${currentShipKey}`);
-        
         ownedShips.forEach(shipKey => {
-            console.log(`Checking ship: ${shipKey}`);
-            console.log(`Is current ship: ${shipKey === currentShipKey}`);
-            
             if (shipKey !== currentShipKey) {
                 const shipType = this.shipTypes[shipKey];
-                
-                console.log(`Found ship type:`, shipType ? shipType.name : 'null');
                 
                 if (shipType) {
                     const shipInfo = {
@@ -232,23 +219,16 @@ export default class TradeRunSystem {
                         image: shipType.image
                     };
                     availableShips.push(shipInfo);
-                    console.log(`Added ${shipInfo.name} to available ships`);
-                } else {
-                    console.log(`ERROR: Ship type not found for key ${shipKey}`);
                 }
-            } else {
-                console.log(`Skipping current ship ${shipKey}`);
             }
         });
-
-        console.log(`Final available ships: [${availableShips.map(s => s.name).join(', ')}]`);
-        console.log(`=== End Available Ships Debug ===\n`);
         
         return availableShips;
     }
 
     // Get save data for trade runs
     getSaveData() {
+        console.log(`Trade run save: ${this.activeTradeRuns.length} active runs`);
         return {
             activeTradeRuns: this.activeTradeRuns.map(tradeRun => ({
                 id: tradeRun.id,

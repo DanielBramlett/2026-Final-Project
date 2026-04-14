@@ -10,14 +10,26 @@ export default class SaveSystem {
 
     // Save game state to localStorage
     saveGame() {
+        console.log('=== Save Game Debug ===');
+        console.log('Save game method called');
         try {
+            console.log('Collecting save data...');
             const saveData = this.collectSaveData();
+            console.log('Save data collected successfully');
+            console.log('Save data keys:', Object.keys(saveData));
+            
+            console.log('Stringifying save data...');
             const saveString = JSON.stringify(saveData);
+            console.log('Save data stringified, length:', saveString.length);
+            
+            console.log('Saving to localStorage...');
             localStorage.setItem(this.saveKey, saveString);
             console.log('Game saved successfully');
+            console.log('=== End Save Game Debug ===');
             return true;
         } catch (error) {
             console.error('Failed to save game:', error);
+            console.log('=== End Save Game Debug (Error) ===');
             return false;
         }
     }
@@ -106,16 +118,29 @@ export default class SaveSystem {
             this.scene.shipModificationSystem.getAllShipUpgrades() : {};
 
         // Faction data
+        console.log('=== Faction Save Debug ===');
+        console.log('Faction system exists:', !!this.scene.factionSystem);
+        
         const factionData = this.scene.factionSystem ? 
             this.scene.factionSystem.getSaveData() : {};
+        
+        console.log('Collected faction data:', factionData);
+        console.log('=== End Faction Save Debug ===');
 
         // Enemy data
         const enemyData = this.scene.enemySystem ? 
             this.scene.enemySystem.getSaveData() : {};
 
         // Trade run data
+        console.log('=== Trade Run Save Debug ===');
+        console.log('Trade run system exists:', !!this.scene.tradeRunSystem);
+        console.log('Active trade runs:', this.scene.tradeRunSystem ? this.scene.tradeRunSystem.activeTradeRuns.length : 'N/A');
+        
         const tradeRunData = this.scene.tradeRunSystem ? 
             this.scene.tradeRunSystem.getSaveData() : {};
+        
+        console.log('Collected trade run data:', tradeRunData);
+        console.log('=== End Trade Run Save Debug ===');
 
         // Game time data
         const gameData = {
@@ -160,9 +185,10 @@ export default class SaveSystem {
             this.scene.enemySystem.restoreSaveData(saveData.enemyData);
         }
 
-        // Restore trade run data
-        if (saveData.tradeRunData && this.scene.tradeRunSystem) {
-            this.scene.tradeRunSystem.restoreSaveData(saveData.tradeRunData);
+        // Trade run data will be restored separately after trade run system is created
+        if (saveData.tradeRunData) {
+            this.scene.pendingTradeRunData = saveData.tradeRunData;
+            console.log('Trade run data stored for later restoration');
         }
 
         // Restore game data
@@ -310,6 +336,27 @@ export default class SaveSystem {
             console.error('Failed to get save info:', error);
             return null;
         }
+    }
+
+    
+    // Restore trade run data after trade run system is created
+    restoreTradeRunData() {
+        console.log('=== Trade Run Load Debug ===');
+        console.log('Pending trade run data exists:', !!this.scene.pendingTradeRunData);
+        console.log('Trade run system exists:', !!this.scene.tradeRunSystem);
+        
+        if (this.scene.pendingTradeRunData) {
+            console.log('Trade run data to restore:', this.scene.pendingTradeRunData);
+        }
+        
+        if (this.scene.pendingTradeRunData && this.scene.tradeRunSystem) {
+            this.scene.tradeRunSystem.restoreSaveData(this.scene.pendingTradeRunData);
+            this.scene.pendingTradeRunData = null; // Clean up
+            console.log('Trade run data restored successfully');
+        } else {
+            console.log('Skipping trade run restoration - missing data or system');
+        }
+        console.log('=== End Trade Run Load Debug ===');
     }
 
     // Calculate play time from save timestamp

@@ -239,7 +239,7 @@ export default class FactionSystem {
     // Save system methods
     getSaveData() {
         return {
-            currentFaction: this.currentFaction ? this.currentFaction.name : null
+            currentFaction: this.currentFaction
         };
     }
 

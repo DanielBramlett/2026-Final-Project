@@ -177,7 +177,8 @@ export default class GameScene extends Phaser.Scene {
             // Default to English for backward compatibility
             this.factionSystem.setFaction('ENGLISH');
         }
-
+        
+        
         // Initialize ship modification system (single shared instance)
         this.shipModificationSystem = new ShipModificationSystem(this);
         
@@ -209,7 +210,7 @@ export default class GameScene extends Phaser.Scene {
             this.playerShip = this.playerSystem.createPlayerShip(
                 8000,
                 5000,
-                SHIP_TYPES.BRIG,
+                SHIP_TYPES.SLOOP,
             );
         }
 
@@ -229,6 +230,11 @@ export default class GameScene extends Phaser.Scene {
         
         // Initialize trade run system
         this.tradeRunSystem = new TradeRunSystem(this, SHIP_TYPES);
+        
+        // Restore trade run data after trade run system is created
+        if (this.pendingTradeRunData) {
+            this.saveSystem.restoreTradeRunData();
+        }
 
         this.islands = [];
         // Caribbean Islands (south-west region)
