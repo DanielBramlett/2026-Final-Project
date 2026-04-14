@@ -267,6 +267,11 @@ export default class PlayerSystem {
         this.scene.ammoUI.playerShip = this.playerShip;
         this.scene.statsUI.playerShip = this.playerShip;
         
+        // Update food consumption system with new player ship reference
+        if (this.scene.foodConsumptionSystem) {
+            this.scene.foodConsumptionSystem.updatePlayerShip(this.playerShip);
+        }
+        
                 
         // Update collisions with new player ship using enhanced collision handler
         this.scene.physics.add.overlap(this.playerShip, this.scene.islands, this.scene.handleShipCollision, null, this.scene);

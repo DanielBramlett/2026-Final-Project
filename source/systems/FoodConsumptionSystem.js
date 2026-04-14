@@ -139,6 +139,11 @@ export default class FoodConsumptionSystem {
         };
     }
     
+    updatePlayerShip(newPlayerShip) {
+        this.playerShip = newPlayerShip;
+        console.log('FoodConsumptionSystem updated with new player ship reference');
+    }
+    
     destroy() {
         this.scene = null;
         this.playerShip = null;
