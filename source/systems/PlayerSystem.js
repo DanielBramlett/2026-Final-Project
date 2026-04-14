@@ -58,9 +58,9 @@ export default class PlayerSystem {
 
         // Add mouse input for cannon firing
         this.scene.input.on('pointerdown', (pointer) => {
-            if (pointer.leftButtonDown()) {
+            if (pointer.rightButtonDown()) {
                 this.fireCannons('left');
-            } else if (pointer.rightButtonDown()) {
+            } else if (pointer.leftButtonDown()) {
                 this.fireCannons('right');
             }
         });
