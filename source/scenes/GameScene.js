@@ -21,7 +21,7 @@ export default class GameScene extends Phaser.Scene {
         
         // Enemy spawning configuration
         this.enemySpawnTimer = 0;
-        this.enemySpawnInterval = 120000; // 2 minutes in milliseconds
+        this.enemySpawnInterval = 18000; // 3 minutes in milliseconds
         this.maxEnemies = 16;
         this.enemiesPerSpawn = 4;
     }
@@ -123,6 +123,12 @@ export default class GameScene extends Phaser.Scene {
         this.load.image('Whydah_West_3', 'assets/Whydah_West_3.png');
         this.load.image('Queen_Annes_Revenge_East', 'assets/Queen_Annes_Revenge_East.png');
         this.load.image('Queen_Annes_Revenge_West', 'assets/Queen_Annes_Revenge_West.png');
+        this.load.image('Dreadnought_East_1', 'assets/Dreadnought_East_1.png');
+        this.load.image('Dreadnought_East_2', 'assets/Dreadnought_East_2.png');
+        this.load.image('Dreadnought_East_3', 'assets/Dreadnought_East_3.png');
+        this.load.image('Dreadnought_West_1', 'assets/Dreadnought_West_1.png');
+        this.load.image('Dreadnought_West_2', 'assets/Dreadnought_West_2.png');
+        this.load.image('Dreadnought_West_3', 'assets/Dreadnought_West_3.png');
         this.load.audio('cannon_shot_1', 'assets/Cannon_Shot_1.mp3');
         this.load.audio('cannon_shot_2', 'assets/Cannon_Shot_2.mp3');
         this.load.audio('rowing', 'assets/Rowing.mp3');
@@ -725,7 +731,10 @@ handleShipCollision(obj1, obj2) {
             SHIP_TYPES.URCA_DE_LIMA,
             SHIP_TYPES.ADVENTURE,
             SHIP_TYPES.WHYDAH,
-            SHIP_TYPES.QUEEN_ANNES_REVENGE
+            SHIP_TYPES.QUEEN_ANNES_REVENGE,
+            SHIP_TYPES.GALLEASS,
+            SHIP_TYPES.LIGHT_GALLEY,
+            SHIP_TYPES.GALLOIT,
         ];
         
         console.log(`Spawning ${enemiesToSpawn} random enemies (current: ${currentEnemyCount}/${this.maxEnemies})`);

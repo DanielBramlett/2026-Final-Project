@@ -1288,9 +1288,9 @@ export const SHIP_TYPES = {
 
         image: 'Santísima_Trinidad_East',
 
-        hitboxScaleX: 0.375,
+        hitboxScaleX: 0.4,
 
-        hitboxScaleY: 0.275,
+        hitboxScaleY: 0.325,
 
         needsOffset: 0
 
@@ -1383,6 +1383,54 @@ export const SHIP_TYPES = {
         needsOffset: 0
 
     },
+
+    DREADNOUGHT: {
+
+        name: 'Dreadnought',
+
+        size: 1100,
+
+        speed: 400,
+
+        rowing: 300,
+
+        turnSpeed: 300,
+
+        cannons: 630,
+
+        crew: 5000,
+
+        crewMax: 5000,
+
+        health: 4000,
+
+        maxHealth: 4000,
+
+        sailIntegrity: 2500,
+
+        maxSailIntegrity: 2500,
+
+        cargo: 0,
+
+        cargoMax: 20000,
+
+        windResistance: 0.8,
+
+        isGalley: 1,
+
+        image: 'Drednought_East_1',
+
+        hitboxScaleX: 0.81,
+
+        hitboxScaleY: 0.575,
+
+        hitboxOffsetX: 0,
+
+        hitboxOffsetY: 0,
+
+        needsOffset: 1
+    }
+
 
 };
 
