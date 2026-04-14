@@ -22,10 +22,6 @@ export default class EnemySystem {
 
     createEnemyShips() {
         this.enemyShips = [];
-        this.spawnEnemyShip(SHIP_TYPES.SLOOP);
-        this.spawnEnemyShip(SHIP_TYPES.SLOOP);
-        this.spawnEnemyShip(SHIP_TYPES.ADVENTURE);
-        this.spawnEnemyShip(SHIP_TYPES.WHYDAH)
         return this.enemyShips;
     }
 

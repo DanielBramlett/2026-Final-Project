@@ -3,7 +3,7 @@ import { SHIP_TYPES } from '../constants/shipTypes.js';
 export default class SaveSystem {
     constructor(scene) {
         this.scene = scene;
-        this.saveKey = 'pirateGameSave';
+        this.saveKey = 'seaBattleSave';
         this.autoSaveInterval = 60000; // Auto-save every 60 seconds
         this.lastAutoSave = 0;
     }
@@ -174,6 +174,18 @@ export default class SaveSystem {
             throw new Error(`Unknown ship type: ${shipData.shipType}`);
         }
 
+        // Destroy old player ship if it exists
+        if (this.scene.playerShip) {
+            console.log('Destroying old player ship before loading save');
+            // Clean up old ship's visual elements
+            if (this.scene.playerShip.hitboxCircle) {
+                this.scene.playerShip.hitboxCircle.destroy();
+            }
+            // Remove from physics and destroy
+            this.scene.physics.world.disableBody(this.scene.playerShip);
+            this.scene.playerShip.destroy();
+        }
+
         // Create new player ship
         const playerShip = this.scene.playerSystem.createPlayerShip(
             shipData.position.x,
@@ -205,6 +217,10 @@ export default class SaveSystem {
 
         // Update sprite direction
         playerShip.updateSpriteDirection();
+
+        // Assign the new ship to the scene and make camera follow it
+        this.scene.playerShip = playerShip;
+        this.scene.cameras.main.startFollow(playerShip);
 
         console.log(`Player ship restored: ${shipData.shipType} at (${shipData.position.x}, ${shipData.position.y})`);
     }

@@ -233,7 +233,7 @@ export default class StartScene extends Phaser.Scene {
 
         try {
             // Load the save data
-            const saveString = localStorage.getItem('pirateGameSave');
+            const saveString = localStorage.getItem('seaBattleSave');
             const saveData = JSON.parse(saveString);
             
             // Restore faction from save data
