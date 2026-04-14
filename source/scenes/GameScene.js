@@ -22,8 +22,8 @@ export default class GameScene extends Phaser.Scene {
         // Enemy spawning configuration
         this.enemySpawnTimer = 0;
         this.enemySpawnInterval = 18000; // 3 minutes in milliseconds
-        this.maxEnemies = 16;
-        this.enemiesPerSpawn = 4;
+        this.maxEnemies = 8;
+        this.enemiesPerSpawn = 2;
     }
 
     preload() {

@@ -247,6 +247,76 @@ export default class TradeRunSystem {
         return availableShips;
     }
 
+    // Get save data for trade runs
+    getSaveData() {
+        return {
+            activeTradeRuns: this.activeTradeRuns.map(tradeRun => ({
+                id: tradeRun.id,
+                shipType: {
+                    name: tradeRun.shipType.name,
+                    displayName: tradeRun.shipType.displayName || tradeRun.shipType.name,
+                    cargoMax: tradeRun.shipType.cargoMax,
+                    image: tradeRun.shipType.image
+                },
+                startTime: tradeRun.startTime,
+                endTime: tradeRun.endTime,
+                cost: tradeRun.cost,
+                reward: tradeRun.reward,
+                status: tradeRun.status
+            })),
+            tradeRunDuration: this.tradeRunDuration,
+            tradeRunMultiplier: this.tradeRunMultiplier
+        };
+    }
+
+    // Restore save data for trade runs
+    restoreSaveData(saveData) {
+        if (!saveData || !saveData.activeTradeRuns) {
+            console.log('No trade run data to restore');
+            return;
+        }
+
+        // Restore settings
+        if (saveData.tradeRunDuration) {
+            this.tradeRunDuration = saveData.tradeRunDuration;
+        }
+        if (saveData.tradeRunMultiplier) {
+            this.tradeRunMultiplier = saveData.tradeRunMultiplier;
+        }
+
+        // Restore active trade runs
+        this.activeTradeRuns = saveData.activeTradeRuns.map(tradeRunData => {
+            // Find the actual ship type object from the ship types
+            const shipType = Object.values(this.shipTypes).find(type => 
+                type.name === tradeRunData.shipType.name
+            );
+
+            if (!shipType) {
+                console.error(`Could not find ship type for: ${tradeRunData.shipType.name}`);
+                return null;
+            }
+
+            return {
+                id: tradeRunData.id,
+                shipType: shipType,
+                startTime: tradeRunData.startTime,
+                endTime: tradeRunData.endTime,
+                cost: tradeRunData.cost,
+                reward: tradeRunData.reward,
+                status: tradeRunData.status
+            };
+        }).filter(tradeRun => tradeRun !== null);
+
+        console.log(`Restored ${this.activeTradeRuns.length} active trade runs`);
+        
+        // Log details of restored trade runs
+        this.activeTradeRuns.forEach(tradeRun => {
+            const timeRemaining = this.getTimeRemaining(tradeRun);
+            const timeString = this.formatTimeRemaining(timeRemaining);
+            console.log(`  - ${tradeRun.shipType.name}: ${timeString} remaining (${tradeRun.reward} gold)`);
+        });
+    }
+
     // Reset all trade runs (useful for game restart)
     reset() {
         this.activeTradeRuns = [];

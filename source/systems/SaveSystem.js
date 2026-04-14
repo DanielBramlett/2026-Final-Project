@@ -113,6 +113,10 @@ export default class SaveSystem {
         const enemyData = this.scene.enemySystem ? 
             this.scene.enemySystem.getSaveData() : {};
 
+        // Trade run data
+        const tradeRunData = this.scene.tradeRunSystem ? 
+            this.scene.tradeRunSystem.getSaveData() : {};
+
         // Game time data
         const gameData = {
             gameTime: Date.now(),
@@ -127,6 +131,7 @@ export default class SaveSystem {
             shipModifications: modificationData,
             factionData: factionData,
             enemyData: enemyData,
+            tradeRunData: tradeRunData,
             gameData: gameData
         };
     }
@@ -153,6 +158,11 @@ export default class SaveSystem {
         // Restore enemy data
         if (saveData.enemyData && this.scene.enemySystem) {
             this.scene.enemySystem.restoreSaveData(saveData.enemyData);
+        }
+
+        // Restore trade run data
+        if (saveData.tradeRunData && this.scene.tradeRunSystem) {
+            this.scene.tradeRunSystem.restoreSaveData(saveData.tradeRunData);
         }
 
         // Restore game data
